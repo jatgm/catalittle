@@ -3,8 +3,9 @@
 //  Catalittle
 //
 //  A complete, faithful clone of "Bearalot" / "Bear Links" built in Swift & SpriteKit.
+//  - Post-fall cascade chain combo mechanic: falling matching blocks continue combos & clear clusters.
 //  - Deterministic column-stack grid engine: blocks NEVER drift or scroll out of grid.
-//  - Relative drop falling: spawning new rows NEVER causes existing blocks to drop or twitch.
+//  - Relative-drop falling: spawning new rows NEVER causes existing blocks to drop or twitch.
 //  - Pre-buffered deep floor spawning with zero visible pop-in.
 //  - Perfectly aligned connecting lines pathing directly through sprite centers.
 //  - Full-width seamless laser beam with instant-kill collision.
@@ -324,6 +325,14 @@ enum BearType: Int, CaseIterable {
         guard let cgImage = ctx.makeImage() else { return SKTexture() }
         return SKTexture(cgImage: cgImage)
     }
+}
+
+// MARK: - Grid Point Struct
+
+struct GridPoint: Hashable, CustomStringConvertible {
+    var col: Int
+    var row: Int
+    var description: String { "(\(col), \(row))" }
 }
 
 // MARK: - BearBlockNode Class
@@ -909,7 +918,6 @@ class GameScene: SKScene {
         }
     }
     
-    /// Spawns a new row deep below without modifying any existing blocks' positions!
     private func spawnRowDeepBelow() {
         let rowStep = blockSize.height + 2.0
         
@@ -1307,7 +1315,6 @@ class GameScene: SKScene {
     private func finalizeClearingBlocks() {
         let blocksToPop = clearingBlocks
         clearingBlocks.removeAll()
-        comboCount = 0
         
         SoundManager.shared.playPop()
         
@@ -1317,6 +1324,7 @@ class GameScene: SKScene {
         }
         
         let rowStep = blockSize.height + 2.0
+        var fallenBlocks = Set<BearBlockNode>()
         
         // Smoothly drop only the blocks situated above the popped gaps!
         for c in 0..<columnsCount {
@@ -1329,6 +1337,7 @@ class GameScene: SKScene {
                 } else {
                     newColumn.append(block)
                     if clearedBelowCount > 0 {
+                        fallenBlocks.insert(block)
                         let targetY = block.position.y - CGFloat(clearedBelowCount) * rowStep
                         let fall = SKAction.moveTo(y: targetY, duration: 0.16)
                         fall.timingMode = .easeIn
@@ -1342,6 +1351,120 @@ class GameScene: SKScene {
             }
             columns[c] = newColumn
         }
+        
+        // Check for post-fall cascade matching after the drop animation settles!
+        if !fallenBlocks.isEmpty {
+            let checkDelay = SKAction.wait(forDuration: 0.22)
+            self.run(checkDelay) { [weak self] in
+                self?.checkPostFallCascades(fallenBlocks: fallenBlocks)
+            }
+        } else {
+            comboCount = 0
+        }
+    }
+    
+    // MARK: - Post-Fall Cascade Combo Chain Reaction
+    
+    private func checkPostFallCascades(fallenBlocks: Set<BearBlockNode>) {
+        guard gameState == .playing else { return }
+        
+        var visited = Set<BearBlockNode>()
+        var allCascadingBlocks = Set<BearBlockNode>()
+        
+        // Build coordinate grid lookup
+        var grid: [GridPoint: BearBlockNode] = [:]
+        var blockCoords: [BearBlockNode: GridPoint] = [:]
+        
+        for c in 0..<columnsCount {
+            for (r, block) in columns[c].enumerated() {
+                let gp = GridPoint(col: c, row: r)
+                grid[gp] = block
+                blockCoords[block] = gp
+            }
+        }
+        
+        // Flood fill to find all orthogonally adjacent matching clusters touching fallen blocks
+        for fallen in fallenBlocks {
+            guard !visited.contains(fallen), !fallen.isClearing, let startGP = blockCoords[fallen] else { continue }
+            
+            let targetType = fallen.bearType
+            var cluster: [BearBlockNode] = []
+            var queue: [GridPoint] = [startGP]
+            visited.insert(fallen)
+            
+            while !queue.isEmpty {
+                let currentGP = queue.removeFirst()
+                guard let currentBlock = grid[currentGP], !currentBlock.isClearing, currentBlock.bearType == targetType else { continue }
+                cluster.append(currentBlock)
+                
+                let neighbors = [
+                    GridPoint(col: currentGP.col, row: currentGP.row + 1),
+                    GridPoint(col: currentGP.col, row: currentGP.row - 1),
+                    GridPoint(col: currentGP.col + 1, row: currentGP.row),
+                    GridPoint(col: currentGP.col - 1, row: currentGP.row)
+                ]
+                
+                for n in neighbors {
+                    if let nBlock = grid[n], !visited.contains(nBlock), !nBlock.isClearing, nBlock.bearType == targetType {
+                        visited.insert(nBlock)
+                        queue.append(n)
+                    }
+                }
+            }
+            
+            // If 2 or more matching blocks touch, they trigger a cascade match!
+            if cluster.count >= 2 {
+                for b in cluster {
+                    allCascadingBlocks.insert(b)
+                }
+            }
+        }
+        
+        if !allCascadingBlocks.isEmpty {
+            executeCascadeMatch(blocks: allCascadingBlocks)
+        } else {
+            comboCount = 0
+        }
+    }
+    
+    private func executeCascadeMatch(blocks: Set<BearBlockNode>) {
+        let now = CACurrentMediaTime()
+        comboCount += 1
+        
+        for block in blocks {
+            block.enterClearState()
+            clearingBlocks.insert(block)
+        }
+        
+        clearStateEndTime = now + clearDuration
+        
+        // Pop + Glockenspiel combo sound (or Crowned Prestige sound for 16x+)
+        SoundManager.shared.playPop()
+        SoundManager.shared.playCombo(index: comboCount)
+        
+        let baseGain = 100
+        let totalGain = baseGain * blocks.count * comboCount
+        score += totalGain
+        
+        levelProgress += 0.05 * CGFloat(blocks.count)
+        if levelProgress >= 1.0 {
+            levelProgress = 0.0
+            level += 1
+            showFloatingLevelUpBadge()
+        }
+        updateLevelProgressBar()
+        
+        // Show combo badge at cluster centroid
+        var sumX: CGFloat = 0
+        var sumY: CGFloat = 0
+        for b in blocks {
+            sumX += b.position.x
+            sumY += b.position.y
+        }
+        let centerPos = CGPoint(x: sumX / CGFloat(blocks.count), y: sumY / CGFloat(blocks.count))
+        showAuthenticComboBadge(combo: comboCount, scoreGain: totalGain, at: centerPos)
+        
+        triggerHaptic(style: .medium)
     }
     
     private func createPopParticles(at pos: CGPoint, color: SKColor) {
