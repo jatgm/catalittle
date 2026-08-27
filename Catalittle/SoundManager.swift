@@ -3,8 +3,8 @@
 //  Catalittle
 //
 //  Rock-solid audio synthesizer and player for Bearalot.
-//  Synthesizes shimmering Glockenspiel / Bell chimes and bubble pops
-//  into pre-rendered WAV files, played with zero latency via AVAudioPlayer pools.
+//  Synthesizes shimmering Glockenspiel / Bell chimes, bubble pops,
+//  and a triumphant "Prestige Combo" sound for 16x+ chain streaks.
 //
 
 import Foundation
@@ -19,6 +19,7 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
     private var selectPlayer: AVAudioPlayer?
     private var errorPlayer: AVAudioPlayer?
     private var comboPlayers: [AVAudioPlayer] = []
+    private var prestigePlayer: AVAudioPlayer?
     
     private override init() {
         super.init()
@@ -71,16 +72,23 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
             errorPlayer = player
         }
         
-        // 4. Generate Shimmering Glockenspiel / Bell Chimes (C5 to G6)
+        // 4. Generate Shimmering Glockenspiel / Bell Chimes (1x to 15x)
         let frequencies: [Double] = [
             523.25,  // C5 (1x)
-            659.25,  // E5 (2x)
-            783.99,  // G5 (3x)
-            880.00,  // A5 (4x)
-            1046.50, // C6 (5x)
-            1174.66, // D6 (6x)
-            1318.51, // E6 (7x)
-            1567.98  // G6 (8x+)
+            587.33,  // D5 (2x)
+            659.25,  // E5 (3x)
+            698.46,  // F5 (4x)
+            783.99,  // G5 (5x)
+            880.00,  // A5 (6x)
+            987.77,  // B5 (7x)
+            1046.50, // C6 (8x)
+            1174.66, // D6 (9x)
+            1318.51, // E6 (10x)
+            1396.91, // F6 (11x)
+            1567.98, // G6 (12x)
+            1760.00, // A6 (13x)
+            1975.53, // B6 (14x)
+            2093.00  // C7 (15x)
         ]
         
         for (i, freq) in frequencies.enumerated() {
@@ -91,6 +99,15 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
                 player.prepareToPlay()
                 comboPlayers.append(player)
             }
+        }
+        
+        // 5. Generate Magnificent "Prestige Combo" WAV (16x+)
+        let prestigeData = generatePrestigeComboWAVData(sampleRate: sampleRate)
+        let prestigeURL = tempDir.appendingPathComponent("bearalot_prestige.wav")
+        try? prestigeData.write(to: prestigeURL)
+        if let player = try? AVAudioPlayer(contentsOf: prestigeURL) {
+            player.prepareToPlay()
+            prestigePlayer = player
         }
     }
     
@@ -105,11 +122,17 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
     }
     
     func playCombo(index: Int) {
-        guard !comboPlayers.isEmpty else { return }
-        let clampedIndex = max(0, min(index - 1, comboPlayers.count - 1))
-        let player = comboPlayers[clampedIndex]
-        player.currentTime = 0
-        player.play()
+        if index >= 16 {
+            // Triumphant prestige combo sound for 16x+ streaks!
+            prestigePlayer?.currentTime = 0
+            prestigePlayer?.play()
+        } else {
+            guard !comboPlayers.isEmpty else { return }
+            let clampedIndex = max(0, min(index - 1, comboPlayers.count - 1))
+            let player = comboPlayers[clampedIndex]
+            player.currentTime = 0
+            player.play()
+        }
     }
     
     func playSelect() {
@@ -124,7 +147,7 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
     
     // MARK: - Procedural Sound Synthesizers
     
-    /// Bubbly Pop: Swift downward frequency sweep with resonant pop envelope.
+    /// Bubbly Pop
     private func generatePopWAVData(sampleRate: Double) -> Data {
         let duration: Double = 0.085
         let numSamples = Int(sampleRate * duration)
@@ -143,8 +166,7 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
     }
     
-    /// Shimmering Glockenspiel / Celesta / Bell:
-    /// Pure fundamental + crystalline high inharmonic metallic overtones with sparkling ring decay.
+    /// Shimmering Glockenspiel / Bell
     private func generateGlockenspielBellWAVData(frequency: Double, sampleRate: Double) -> Data {
         let duration: Double = 0.50
         let numSamples = Int(sampleRate * duration)
@@ -159,23 +181,55 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
             let t = Double(i) / sampleRate
             let progress = t / duration
             
-            // Glockenspiel / Celesta Bar Physics: Modes at 1.0x, 2.756x, 5.404x, and metal ping at 8.93x
             phase1 += 2.0 * .pi * frequency / sampleRate
             phase2 += 2.0 * .pi * (frequency * 2.756) / sampleRate
             phase3 += 2.0 * .pi * (frequency * 5.404) / sampleRate
             phase4 += 2.0 * .pi * (frequency * 8.933) / sampleRate
             
-            // Envelopes: Fundamental rings longest, upper metallic harmonics sparkle and fade
             let env1 = exp(-progress * 5.5)
             let env2 = exp(-progress * 11.0) * 0.45
             let env3 = exp(-progress * 20.0) * 0.22
-            let env4 = exp(-progress * 35.0) * 0.15 // Initial metallic mallet ping
+            let env4 = exp(-progress * 35.0) * 0.15
             
-            // Subtle musical bell shimmer
             let shimmer = 1.0 + 0.05 * sin(2.0 * .pi * 6.0 * t)
-            
             let sampleVal = (sin(phase1) * env1 + sin(phase2) * env2 + sin(phase3) * env3 + sin(phase4) * env4) * shimmer * 0.85
             samples[i] = Int16(max(-32767, min(32767, sampleVal * 32767)))
+        }
+        return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
+    }
+    
+    /// Triumphant Celestial "Prestige Combo" Chord for 16x+ (Major 9th Celestial Fanfare)
+    private func generatePrestigeComboWAVData(sampleRate: Double) -> Data {
+        let duration: Double = 0.65
+        let numSamples = Int(sampleRate * duration)
+        var samples = [Int16](repeating: 0, count: numSamples)
+        
+        // C6 + E6 + G6 + B6 + D7 celestial chord
+        let chordNotes: [Double] = [1046.50, 1318.51, 1567.98, 1975.53, 2349.32]
+        var phases = [Double](repeating: 0.0, count: chordNotes.count)
+        
+        for i in 0..<numSamples {
+            let t = Double(i) / sampleRate
+            let progress = t / duration
+            
+            var chordSum: Double = 0.0
+            for (idx, freq) in chordNotes.enumerated() {
+                // Staggered arpeggio attack
+                let noteDelay = Double(idx) * 0.022
+                if t >= noteDelay {
+                    let noteProgress = (t - noteDelay) / (duration - noteDelay)
+                    phases[idx] += 2.0 * .pi * freq / sampleRate
+                    let env = exp(-noteProgress * 4.5) * sin(min(noteProgress * 15.0, 1.0) * .pi / 2.0)
+                    chordSum += sin(phases[idx]) * env * (1.0 / Double(chordNotes.count))
+                }
+            }
+            
+            // Sub harmonic resonance for satisfying physical punch
+            let bassPhase = 2.0 * .pi * 261.63 * t
+            let bassEnv = exp(-progress * 6.0)
+            let total = (chordSum * 1.3 + sin(bassPhase) * bassEnv * 0.3) * 0.90
+            
+            samples[i] = Int16(max(-32767, min(32767, total * 32767)))
         }
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
     }
