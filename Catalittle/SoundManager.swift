@@ -4,7 +4,7 @@
 //
 //  Rock-solid audio synthesizer and player for Bearalot.
 //  Synthesizes shimmering Glockenspiel / Bell chimes, bubble pops,
-//  and a triumphant "Prestige Combo" sound for 16x+ chain streaks.
+//  and a crowned 16x+ Prestige Glockenspiel Chime with sparkling resonance.
 //
 
 import Foundation
@@ -101,8 +101,8 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
             }
         }
         
-        // 5. Generate Magnificent "Prestige Combo" WAV (16x+)
-        let prestigeData = generatePrestigeComboWAVData(sampleRate: sampleRate)
+        // 5. Generate Crowned Prestige Glockenspiel WAV (16x+)
+        let prestigeData = generatePrestigeGlockenspielWAVData(sampleRate: sampleRate)
         let prestigeURL = tempDir.appendingPathComponent("bearalot_prestige.wav")
         try? prestigeData.write(to: prestigeURL)
         if let player = try? AVAudioPlayer(contentsOf: prestigeURL) {
@@ -123,7 +123,7 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
     
     func playCombo(index: Int) {
         if index >= 16 {
-            // Triumphant prestige combo sound for 16x+ streaks!
+            // Crowned Prestige Glockenspiel for 16x+
             prestigePlayer?.currentTime = 0
             prestigePlayer?.play()
         } else {
@@ -198,38 +198,38 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
     }
     
-    /// Triumphant Celestial "Prestige Combo" Chord for 16x+ (Major 9th Celestial Fanfare)
-    private func generatePrestigeComboWAVData(sampleRate: Double) -> Data {
-        let duration: Double = 0.65
+    /// Crowned 16x+ Prestige Glockenspiel Sound (Glockenspiel Lead C7 + Harmonic Sparkle Chime)
+    private func generatePrestigeGlockenspielWAVData(sampleRate: Double) -> Data {
+        let duration: Double = 0.60
         let numSamples = Int(sampleRate * duration)
         var samples = [Int16](repeating: 0, count: numSamples)
         
-        // C6 + E6 + G6 + B6 + D7 celestial chord
-        let chordNotes: [Double] = [1046.50, 1318.51, 1567.98, 1975.53, 2349.32]
-        var phases = [Double](repeating: 0.0, count: chordNotes.count)
+        // Lead Glockenspiel Note C7 (2093 Hz) + Supporting Harmonic Bells (C6 1046.5 Hz, G6 1568 Hz, E7 2637 Hz)
+        let bellLayers: [(freq: Double, weight: Double, decay: Double)] = [
+            (2093.00, 1.00, 5.0), // Lead Glockenspiel C7
+            (5768.00, 0.40, 12.0), // High metallic bar overtone
+            (1046.50, 0.50, 6.0), // Warm lower octave C6
+            (1567.98, 0.40, 5.5), // Perfect 5th bell G6
+            (2637.02, 0.35, 8.0)  // Glistening Major 3rd E7
+        ]
+        
+        var phases = [Double](repeating: 0.0, count: bellLayers.count)
         
         for i in 0..<numSamples {
             let t = Double(i) / sampleRate
             let progress = t / duration
             
-            var chordSum: Double = 0.0
-            for (idx, freq) in chordNotes.enumerated() {
-                // Staggered arpeggio attack
-                let noteDelay = Double(idx) * 0.022
-                if t >= noteDelay {
-                    let noteProgress = (t - noteDelay) / (duration - noteDelay)
-                    phases[idx] += 2.0 * .pi * freq / sampleRate
-                    let env = exp(-noteProgress * 4.5) * sin(min(noteProgress * 15.0, 1.0) * .pi / 2.0)
-                    chordSum += sin(phases[idx]) * env * (1.0 / Double(chordNotes.count))
-                }
+            var totalBell: Double = 0.0
+            for (idx, layer) in bellLayers.enumerated() {
+                phases[idx] += 2.0 * .pi * layer.freq / sampleRate
+                let env = exp(-progress * layer.decay)
+                totalBell += sin(phases[idx]) * env * layer.weight
             }
             
-            // Sub harmonic resonance for satisfying physical punch
-            let bassPhase = 2.0 * .pi * 261.63 * t
-            let bassEnv = exp(-progress * 6.0)
-            let total = (chordSum * 1.3 + sin(bassPhase) * bassEnv * 0.3) * 0.90
-            
-            samples[i] = Int16(max(-32767, min(32767, total * 32767)))
+            // Sparkle shimmer
+            let sparkle = 1.0 + 0.08 * sin(2.0 * .pi * 8.0 * t)
+            let finalVal = (totalBell / 1.8) * sparkle * 0.90
+            samples[i] = Int16(max(-32767, min(32767, finalVal * 32767)))
         }
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
     }

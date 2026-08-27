@@ -3,12 +3,12 @@
 //  Catalittle
 //
 //  A complete, faithful clone of "Bearalot" / "Bear Links" built in Swift & SpriteKit.
-//  - Deterministic column-based Lianliankan pathfinding (zero phantom connections, zero false blocks).
-//  - Authentic cartoon 3x / 350 combo multiplier badges and bold outlined bubble fonts.
-//  - Horizontal X-axis scrolling panoramic background and infinite scrolling grass.
-//  - Perfectly clipped block vector art with zero sprite overflow.
-//  - Simultaneous Bubble Pop + Glockenspiel chimes and 16x+ Prestige Combo sound.
-//  - Instant-kill electric laser and pause-on-clear scrolling.
+//  - Perfectly aligned connecting lines pathing directly through sprite centers with zero offsets.
+//  - Full-width seamless laser beam with no visible endpoints.
+//  - Pre-buffered deep floor spawning with zero visible pop-in and zero physics drop/jitter.
+//  - Gentle, relaxed rise speed (4.5 pt/s).
+//  - Cohesive Glockenspiel / Bell chimes with 16x+ Prestige sparkle crown.
+//  - Horizontal X-axis scrolling panoramic background and infinite grass floor.
 //
 
 import SpriteKit
@@ -72,7 +72,6 @@ enum BearType: Int, CaseIterable {
         let bodyRect = CGRect(x: 2, y: 2, width: w - 4, height: h - 4)
         let bodyPath = CGPath(roundedRect: bodyRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
         
-        // Base fill & clipping to guarantee NOTHING bleeds outside the pill boundary!
         ctx.saveGState()
         ctx.addPath(bodyPath)
         ctx.clip()
@@ -82,13 +81,11 @@ enum BearType: Int, CaseIterable {
         
         switch type {
         case .pinkBear:
-            // Ears nested inside top corners
             let earR: CGFloat = h * 0.20
             ctx.setFillColor(SKColor(red: 1.0, green: 0.65, blue: 0.75, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.10, y: h * 0.58, width: earR * 2, height: earR * 2))
             ctx.fillEllipse(in: CGRect(x: w * 0.90 - earR * 2, y: h * 0.58, width: earR * 2, height: earR * 2))
             
-            // Eyes
             let eyeR: CGFloat = h * 0.08
             ctx.setFillColor(SKColor(red: 0.15, green: 0.1, blue: 0.15, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.32 - eyeR, y: h * 0.50 - eyeR, width: eyeR * 2, height: eyeR * 2))
@@ -114,13 +111,11 @@ enum BearType: Int, CaseIterable {
             ctx.strokePath()
             
         case .pandaBear:
-            // Ears
             let earR: CGFloat = h * 0.20
             ctx.setFillColor(SKColor(red: 0.15, green: 0.18, blue: 0.25, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.10, y: h * 0.58, width: earR * 2, height: earR * 2))
             ctx.fillEllipse(in: CGRect(x: w * 0.90 - earR * 2, y: h * 0.58, width: earR * 2, height: earR * 2))
             
-            // Panda Eye Patches
             let patchW = w * 0.24
             let patchH = h * 0.44
             ctx.fillEllipse(in: CGRect(x: w * 0.18, y: h * 0.30, width: patchW, height: patchH))
@@ -278,9 +273,8 @@ enum BearType: Int, CaseIterable {
             ctx.fillEllipse(in: CGRect(x: w * 0.46, y: h * 0.26, width: w * 0.08, height: h * 0.14))
         }
         
-        ctx.restoreGState() // Restore from clip
+        ctx.restoreGState()
         
-        // Dark crisp border stroke around entire pill
         ctx.setStrokeColor(SKColor(red: 0.12, green: 0.15, blue: 0.18, alpha: 0.95).cgColor)
         ctx.setLineWidth(2.5)
         ctx.addPath(bodyPath)
@@ -468,7 +462,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var floorNode = SKNode()
     private var spawnedBelowCount: Int = 0
     private var nextSpawnThreshold: CGFloat = 0
-    private var baseRiseSpeed: Double = 7.5
+    private var baseRiseSpeed: Double = 4.5 // Calmer, enjoyable rise speed
     private var lastUpdateTime: TimeInterval = 0
     
     // MARK: - Panoramic Horizontal X-Axis Scrolling Background
@@ -476,7 +470,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var bgStrip1 = SKNode()
     private var bgStrip2 = SKNode()
     private var bgStripWidth: CGFloat = 0
-    private let bgScrollSpeed: CGFloat = 12.0 // Continuous X-axis panoramic scroll
+    private let bgScrollSpeed: CGFloat = 12.0
     
     // MARK: - Horizontal X-Axis Scrolling Grass Floor
     private var grassContainer = SKNode()
@@ -502,7 +496,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var levelProgress: CGFloat = 0.0
     private var comboCount: Int = 0
     
-    // MARK: - Electric Laser Danger Line (Thick, Ultra-Bright, Instant Kill)
+    // MARK: - Electric Laser Danger Line (Full-Width, Instant Kill)
     private var laserGlowNode = SKShapeNode()
     private var laserCoreNode = SKShapeNode()
     private var lastLaserJitterTime: TimeInterval = 0
@@ -582,7 +576,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         bgContainer.zPosition = -100
         addChild(bgContainer)
         
-        // Base Sky
         let sky = SKShapeNode(rectOf: CGSize(width: size.width * 4, height: size.height * 2))
         sky.position = CGPoint(x: size.width / 2, y: size.height / 2)
         sky.fillColor = SKColor(red: 0.35, green: 0.68, blue: 0.94, alpha: 1.0)
@@ -595,7 +588,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             let strip = SKNode()
             strip.position = CGPoint(x: offsetX, y: 0)
             
-            // Rolling Green Hill
             let hillPath = CGMutablePath()
             hillPath.move(to: CGPoint(x: 0, y: floorY))
             hillPath.addLine(to: CGPoint(x: 0, y: size.height * 0.52))
@@ -609,7 +601,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             hill.lineWidth = 3.0
             strip.addChild(hill)
             
-            // Smiling Face on the hill
             let hillFace = SKNode()
             hillFace.position = CGPoint(x: bgStripWidth * 0.24, y: size.height * 0.58)
             let leftEye = SKShapeNode(circleOfRadius: 4.0)
@@ -631,7 +622,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             hillFace.addChild(smile)
             strip.addChild(hillFace)
             
-            // Picket Fence
             for i in 0..<10 {
                 let fenceX = bgStripWidth * 0.08 + CGFloat(i) * 24.0
                 let fenceY = size.height * 0.46 - CGFloat(i) * 5.0
@@ -642,7 +632,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 strip.addChild(post)
             }
             
-            // Floating Stars
             addFloatingStar(at: CGPoint(x: bgStripWidth * 0.30, y: size.height * 0.74), scale: 0.9, in: strip)
             addFloatingStar(at: CGPoint(x: bgStripWidth * 0.65, y: size.height * 0.68), scale: 0.7, in: strip)
             addFloatingStar(at: CGPoint(x: bgStripWidth * 0.85, y: size.height * 0.76), scale: 0.8, in: strip)
@@ -712,8 +701,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         gameLayer.zPosition = 10
         addChild(gameLayer)
         
-        floorNode.position = CGPoint(x: size.width / 2, y: floorY)
-        let floorBody = SKPhysicsBody(edgeFrom: CGPoint(x: -size.width, y: 0), to: CGPoint(x: size.width, y: 0))
+        floorNode.position = CGPoint(x: size.width / 2, y: floorY - (blockSize.height + 2.0) * 2.0)
+        let floorBody = SKPhysicsBody(edgeFrom: CGPoint(x: -size.width * 2, y: 0), to: CGPoint(x: size.width * 2, y: 0))
         floorBody.categoryBitMask = PhysicsCategory.floor
         floorBody.collisionBitMask = PhysicsCategory.block
         floorBody.friction = 0.8
@@ -770,7 +759,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         grassStrip2.position = CGPoint(x: grassStripWidth, y: 0)
         grassContainer.addChild(grassStrip2)
         
-        let grassSkirt = SKShapeNode(rect: CGRect(x: -100, y: -400, width: size.width + 200, height: 400))
+        let grassSkirt = SKShapeNode(rect: CGRect(x: -100, y: -500, width: size.width + 200, height: 500))
         grassSkirt.fillColor = SKColor(red: 0.28, green: 0.48, blue: 0.18, alpha: 1.0)
         grassSkirt.strokeColor = .clear
         grassContainer.addChild(grassSkirt)
@@ -886,7 +875,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         #endif
     }
     
-    // MARK: - Electric Laser Danger Line (Thick, Ultra-Bright, Instant Kill)
+    // MARK: - Electric Laser Danger Line (Full-Width, Instant Kill)
     
     private func setupElectricLaserLine() {
         laserGlowNode.strokeColor = SKColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 1.0)
@@ -905,12 +894,14 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     private func updateElectricLaserPath(jitter: Bool) {
         let path = CGMutablePath()
-        let segments = 22
-        let segW = playableRect.width / CGFloat(segments)
-        path.move(to: CGPoint(x: playableRect.minX, y: dangerLineY))
+        let segments = 26
+        let startX: CGFloat = -40.0
+        let totalW = size.width + 80.0
+        let segW = totalW / CGFloat(segments)
+        path.move(to: CGPoint(x: startX, y: dangerLineY))
         
         for i in 1...segments {
-            let x = playableRect.minX + CGFloat(i) * segW
+            let x = startX + CGFloat(i) * segW
             let amp: CGFloat = (i % 2 == 0) ? 6.5 : -6.5
             let jitterDelta = jitter ? CGFloat.random(in: -3.0...3.0) : 0.0
             let y = dangerLineY + amp + jitterDelta
@@ -921,7 +912,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         laserCoreNode.path = path
     }
     
-    // MARK: - Game Lifecycle & Start
+    // MARK: - Game Lifecycle & Pre-Buffered Deep Spawning
     
     private func startGame() {
         for child in gameLayer.children where child is BearBlockNode {
@@ -931,10 +922,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         gameOverOverlay = SKNode()
         
         gameLayer.position = .zero
-        spawnedBelowCount = 0
+        spawnedBelowCount = 2 // 2 buffer rows pre-spawned deep under floor
         let rowStep = blockSize.height + 2.0
         nextSpawnThreshold = rowStep
-        floorNode.position = CGPoint(x: size.width / 2, y: floorY)
+        floorNode.position = CGPoint(x: size.width / 2, y: floorY - rowStep * 2.0)
         
         score = 0
         level = 1
@@ -947,8 +938,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         updateLevelProgressBar()
         
-        // Spawn initial 4 rows on the board
-        for row in 0..<4 {
+        // Spawn visible rows (Row 0 to 3) + Deep Buffer Rows (-1 and -2)
+        for row in -2..<4 {
             let rowY = floorY + blockSize.height / 2 + CGFloat(row) * rowStep
             for col in 0..<columnsCount {
                 let x = gridStartX + CGFloat(col) * (colWidth + 3.0)
@@ -963,7 +954,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    // MARK: - Smooth Continuous Rise & Real-Time Drag-Up
+    // MARK: - Smooth Continuous Rise & Pre-Buffered Deep Spawning
     
     private func applyRiseOffset(_ dy: CGFloat, isManualDrag: Bool = false) {
         guard gameState == .playing, dy > 0 else { return }
@@ -975,12 +966,13 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         let rowStep = blockSize.height + 2.0
         while gameLayer.position.y >= nextSpawnThreshold {
-            spawnRowBelow()
+            spawnRowDeepBelow()
             nextSpawnThreshold += rowStep
         }
     }
     
-    private func spawnRowBelow() {
+    /// Spawns new rows 2 rows deep below the floor so they never pop in or cause physics jitter
+    private func spawnRowDeepBelow() {
         spawnedBelowCount += 1
         let rowStep = blockSize.height + 2.0
         let rowY = floorY + blockSize.height / 2 - CGFloat(spawnedBelowCount) * rowStep
@@ -999,9 +991,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    // MARK: - Deterministic Column/Stack Lianliankan Pathfinding (Zero Phantom Blocks)
+    // MARK: - Deterministic Column/Stack Pathfinding (Perfect Centered Connecting Lines)
     
-    /// Maps all active blocks into their exact discrete column and row index.
     private func buildGridMatrix() -> (matrix: [[BearBlockNode?]], blockToCoord: [BearBlockNode: GridPoint], maxRow: Int) {
         var columns: [[BearBlockNode]] = Array(repeating: [], count: columnsCount)
         let activeBlocks = gameLayer.children.compactMap { $0 as? BearBlockNode }
@@ -1012,7 +1003,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             columns[clampedCol].append(b)
         }
         
-        // Sort each column ascending by Y position so bottom block is row 0
         var matrix: [[BearBlockNode?]] = []
         var blockToCoord: [BearBlockNode: GridPoint] = [:]
         var maxRow = 4
@@ -1036,30 +1026,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         return (matrix, blockToCoord, maxRow)
     }
     
-    private func localPoint(for gp: GridPoint) -> CGPoint {
-        let x: CGFloat
-        if gp.col == -1 {
-            x = playableRect.minX - 12
-        } else if gp.col == columnsCount {
-            x = playableRect.maxX + 12
-        } else {
-            x = gridStartX + CGFloat(gp.col) * (colWidth + 3.0)
-        }
-        
-        let y = floorNode.position.y + blockSize.height / 2 + CGFloat(gp.row) * (blockSize.height + 2.0)
-        return CGPoint(x: x, y: y)
-    }
-    
     private func isCellFree(matrix: [[BearBlockNode?]], pt: GridPoint, start: GridPoint, target: GridPoint, maxRow: Int) -> Bool {
         if pt == start || pt == target { return true }
-        
-        // Outside board bounds (left, right, bottom, or above stack) is always open
         if pt.col < 0 || pt.col >= columnsCount || pt.row < 0 || pt.row > maxRow {
             return true
         }
-        
         if let block = matrix[pt.col][pt.row] {
-            // Clearing blocks are passable!
             return block.isClearing
         }
         return true
@@ -1094,14 +1066,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         return false
     }
     
+    /// Finds path with precise sprite-centered geometry (zero visual offsets!)
     private func findLinkPath(from startBlock: BearBlockNode, to targetBlock: BearBlockNode) -> [CGPoint]? {
         let (matrix, blockToCoord, maxRow) = buildGridMatrix()
         guard let start = blockToCoord[startBlock], let target = blockToCoord[targetBlock] else { return nil }
         
+        let pStart = startBlock.position
+        let pTarget = targetBlock.position
+        
         // 1. Direct Straight Line (0 Turns)
         if (start.col == target.col || start.row == target.row) &&
             isStraightLineClear(matrix: matrix, from: start, to: target, start: start, target: target, maxRow: maxRow) {
-            return [localPoint(for: start), localPoint(for: target)]
+            return [pStart, pTarget]
         }
         
         // 2. 1 Turn (2 Segments - L-Shape)
@@ -1109,17 +1085,19 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         if isCellFree(matrix: matrix, pt: corner1, start: start, target: target, maxRow: maxRow) &&
             isStraightLineClear(matrix: matrix, from: start, to: corner1, start: start, target: target, maxRow: maxRow) &&
             isStraightLineClear(matrix: matrix, from: corner1, to: target, start: start, target: target, maxRow: maxRow) {
-            return [localPoint(for: start), localPoint(for: corner1), localPoint(for: target)]
+            let pCorner = CGPoint(x: pStart.x, y: pTarget.y)
+            return [pStart, pCorner, pTarget]
         }
         
         let corner2 = GridPoint(col: target.col, row: start.row)
         if isCellFree(matrix: matrix, pt: corner2, start: start, target: target, maxRow: maxRow) &&
             isStraightLineClear(matrix: matrix, from: start, to: corner2, start: start, target: target, maxRow: maxRow) &&
             isStraightLineClear(matrix: matrix, from: corner2, to: target, start: start, target: target, maxRow: maxRow) {
-            return [localPoint(for: start), localPoint(for: corner2), localPoint(for: target)]
+            let pCorner = CGPoint(x: pTarget.x, y: pStart.y)
+            return [pStart, pCorner, pTarget]
         }
         
-        // 3. 2 Turns (3 Segments - Z / U Shape)
+        // 3. 2 Turns (3 Segments - Z / U Shape along vertical channel)
         for col in -1...columnsCount {
             let p1 = GridPoint(col: col, row: start.row)
             let p2 = GridPoint(col: col, row: target.row)
@@ -1128,10 +1106,24 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 isStraightLineClear(matrix: matrix, from: start, to: p1, start: start, target: target, maxRow: maxRow) &&
                 isStraightLineClear(matrix: matrix, from: p1, to: p2, start: start, target: target, maxRow: maxRow) &&
                 isStraightLineClear(matrix: matrix, from: p2, to: target, start: start, target: target, maxRow: maxRow) {
-                return [localPoint(for: start), localPoint(for: p1), localPoint(for: p2), localPoint(for: target)]
+                
+                let channelX: CGFloat
+                if col == -1 {
+                    channelX = playableRect.minX - 12
+                } else if col == columnsCount {
+                    channelX = playableRect.maxX + 12
+                } else {
+                    channelX = gridStartX + CGFloat(col) * (colWidth + 3.0)
+                }
+                
+                let pt1 = CGPoint(x: channelX, y: pStart.y)
+                let pt2 = CGPoint(x: channelX, y: pTarget.y)
+                return [pStart, pt1, pt2, pTarget]
             }
         }
         
+        // 4. 2 Turns (3 Segments - Z / U Shape along horizontal channel / above stack)
+        let topOverY = max(pStart.y, pTarget.y) + (blockSize.height + 2.0)
         for row in -1...(maxRow + 2) {
             let p1 = GridPoint(col: start.col, row: row)
             let p2 = GridPoint(col: target.col, row: row)
@@ -1140,7 +1132,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 isStraightLineClear(matrix: matrix, from: start, to: p1, start: start, target: target, maxRow: maxRow) &&
                 isStraightLineClear(matrix: matrix, from: p1, to: p2, start: start, target: target, maxRow: maxRow) &&
                 isStraightLineClear(matrix: matrix, from: p2, to: target, start: start, target: target, maxRow: maxRow) {
-                return [localPoint(for: start), localPoint(for: p1), localPoint(for: p2), localPoint(for: target)]
+                
+                let channelY: CGFloat
+                if row > maxRow {
+                    channelY = topOverY
+                } else {
+                    channelY = floorNode.position.y + blockSize.height / 2 + CGFloat(row) * (blockSize.height + 2.0)
+                }
+                
+                let pt1 = CGPoint(x: pStart.x, y: channelY)
+                let pt2 = CGPoint(x: pTarget.x, y: channelY)
+                return [pStart, pt1, pt2, pTarget]
             }
         }
         
@@ -1210,7 +1212,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         clearStateEndTime = now + clearDuration
         
-        // Pop sound + Glockenspiel/Prestige combo sound
+        // Pop sound + Glockenspiel/Prestige sound
         SoundManager.shared.playPop()
         SoundManager.shared.playCombo(index: comboCount)
         
@@ -1256,7 +1258,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         lineNode.run(SKAction.sequence([wait, fade, SKAction.removeFromParent()]))
     }
     
-    /// Displays the authentic cartoon combo multiplier (e.g., golden `3x` over bold white `350`)
     private func showAuthenticComboBadge(combo: Int, scoreGain: Int, at pos: CGPoint) {
         let badgeContainer = SKNode()
         badgeContainer.position = pos
@@ -1265,7 +1266,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let strokeNavy = SKColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0)
         
         if combo > 1 {
-            // Top: Golden Yellow `3x`
             let comboLabel = SKLabelNode()
             comboLabel.attributedText = makeOutlinedBubbleString(
                 text: "\(combo)x",
@@ -1276,7 +1276,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             comboLabel.position = CGPoint(x: 0, y: 14)
             badgeContainer.addChild(comboLabel)
             
-            // Bottom: Bold White Score Gain `350`
             let scoreGainLabel = SKLabelNode()
             scoreGainLabel.attributedText = makeOutlinedBubbleString(
                 text: "\(scoreGain)",
@@ -1287,7 +1286,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             scoreGainLabel.position = CGPoint(x: 0, y: -18)
             badgeContainer.addChild(scoreGainLabel)
         } else {
-            // Single Gain: Bold White `100`
             let singleLabel = SKLabelNode()
             singleLabel.attributedText = makeOutlinedBubbleString(
                 text: "\(scoreGain)",
@@ -1360,7 +1358,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         // 2. Continuous Upward Rise (PAUSED during active Clear State!)
         let isClearing = !clearingBlocks.isEmpty
         if !isClearing {
-            let currentSpeed = baseRiseSpeed + Double(level - 1) * 2.0
+            let currentSpeed = baseRiseSpeed + Double(level - 1) * 1.5
             let autoRise = CGFloat(currentSpeed * dt)
             applyRiseOffset(autoRise, isManualDrag: false)
         }
