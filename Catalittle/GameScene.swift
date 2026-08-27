@@ -3,11 +3,14 @@
 //  Catalittle
 //
 //  A complete, faithful clone of "Bearalot" / "Bear Links" built in Swift & SpriteKit.
-//  Features:
-//  - Smooth continuous rising stack with real-time interactive drag-up.
-//  - 2-block link matching (Onet / Lianliankan pathfinding with <= 2 turns).
-//  - Clear state delays allowing connection routing straight through clearing blocks.
-//  - Multiplier combos (2x, 3x...), authentic custom vector characters, and HUD.
+//  Includes:
+//  - 6-column grid with authentic character pill art (including Panda Bear).
+//  - Safe-area aware HUD with rounded cartoon bubble fonts.
+//  - Electric crackling cyan/white laser danger ceiling.
+//  - Smooth continuous rising stack with seamless hidden bottom spawning.
+//  - 1:1 real-time drag-up.
+//  - Procedural sound effects (bubble pops & ascending xylophone combo chimes).
+//  - Pre-warmed cache to prevent initial tap freeze.
 //
 
 import SpriteKit
@@ -19,7 +22,7 @@ import UIKit
 import AppKit
 #endif
 
-// MARK: - Bear / Character Types (Matches Screenshots Exactly)
+// MARK: - Bear / Character Types (Matches Screenshot 2 Exactly)
 
 enum BearType: Int, CaseIterable {
     case pinkBear = 0     // Pink bear with round ears & cute snout
@@ -29,6 +32,7 @@ enum BearType: Int, CaseIterable {
     case redMustache      // Red/coral pill with black mustache
     case limeFrog         // Lime green with wide-set dot eyes & smile
     case yellowStar       // Bright yellow star/cat with anime sparkle eyes
+    case pandaBear        // Panda with white face, black eye patches & ears
     
     var primaryColor: SKColor {
         switch self {
@@ -39,6 +43,7 @@ enum BearType: Int, CaseIterable {
         case .redMustache:  return SKColor(red: 1.0, green: 0.45, blue: 0.48, alpha: 1.0)
         case .limeFrog:     return SKColor(red: 0.62, green: 0.94, blue: 0.22, alpha: 1.0)
         case .yellowStar:   return SKColor(red: 1.0, green: 0.92, blue: 0.25, alpha: 1.0)
+        case .pandaBear:    return SKColor(red: 0.96, green: 0.97, blue: 1.0, alpha: 1.0)
         }
     }
     
@@ -65,43 +70,37 @@ enum BearType: Int, CaseIterable {
         ctx.scaleBy(x: scale, y: scale)
         let w = size.width
         let h = size.height
-        let cornerRadius: CGFloat = h * 0.42
+        let cornerRadius: CGFloat = h * 0.44
         
         let bodyRect = CGRect(x: 2, y: 2, width: w - 4, height: h - 4)
         let bodyPath = CGPath(roundedRect: bodyRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
         
         switch type {
         case .pinkBear:
-            // Ears at top corners
             let earR: CGFloat = h * 0.22
             ctx.setFillColor(SKColor(red: 1.0, green: 0.65, blue: 0.75, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.08, y: h * 0.60, width: earR * 2, height: earR * 2))
             ctx.fillEllipse(in: CGRect(x: w * 0.92 - earR * 2, y: h * 0.60, width: earR * 2, height: earR * 2))
             
-            // Body
             ctx.setFillColor(type.primaryColor.cgColor)
             ctx.addPath(bodyPath)
             ctx.fillPath()
             
-            // Eyes
-            ctx.setFillColor(SKColor(red: 0.15, green: 0.1, blue: 0.15, alpha: 1.0).cgColor)
             let eyeR: CGFloat = h * 0.08
+            ctx.setFillColor(SKColor(red: 0.15, green: 0.1, blue: 0.15, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.32 - eyeR, y: h * 0.50 - eyeR, width: eyeR * 2, height: eyeR * 2))
             ctx.fillEllipse(in: CGRect(x: w * 0.68 - eyeR, y: h * 0.50 - eyeR, width: eyeR * 2, height: eyeR * 2))
             
-            // Eye gleam
             ctx.setFillColor(SKColor.white.cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.30 - eyeR * 0.3, y: h * 0.52, width: eyeR * 0.8, height: eyeR * 0.8))
             ctx.fillEllipse(in: CGRect(x: w * 0.66 - eyeR * 0.3, y: h * 0.52, width: eyeR * 0.8, height: eyeR * 0.8))
             
-            // Rosy cheeks
             ctx.setFillColor(SKColor(red: 1.0, green: 0.45, blue: 0.6, alpha: 0.45).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.18, y: h * 0.38, width: h * 0.22, height: h * 0.18))
             ctx.fillEllipse(in: CGRect(x: w * 0.82 - h * 0.22, y: h * 0.38, width: h * 0.22, height: h * 0.18))
             
-            // Upside-down 'Y' mouth
             ctx.setStrokeColor(SKColor(red: 0.2, green: 0.1, blue: 0.2, alpha: 1.0).cgColor)
-            ctx.setLineWidth(2.0)
+            ctx.setLineWidth(2.2)
             ctx.setLineCap(.round)
             ctx.move(to: CGPoint(x: w * 0.5, y: h * 0.45))
             ctx.addLine(to: CGPoint(x: w * 0.5, y: h * 0.34))
@@ -111,13 +110,48 @@ enum BearType: Int, CaseIterable {
             ctx.addLine(to: CGPoint(x: w * 0.58, y: h * 0.24))
             ctx.strokePath()
             
-        case .greenLass:
-            // Body
+        case .pandaBear:
+            // Black ears
+            let earR: CGFloat = h * 0.22
+            ctx.setFillColor(SKColor(red: 0.15, green: 0.18, blue: 0.25, alpha: 1.0).cgColor)
+            ctx.fillEllipse(in: CGRect(x: w * 0.08, y: h * 0.60, width: earR * 2, height: earR * 2))
+            ctx.fillEllipse(in: CGRect(x: w * 0.92 - earR * 2, y: h * 0.60, width: earR * 2, height: earR * 2))
+            
+            // White body
             ctx.setFillColor(type.primaryColor.cgColor)
             ctx.addPath(bodyPath)
             ctx.fillPath()
             
-            // Hair ribbon / parting at top
+            // Giant black panda eye patches (rotated ovals)
+            ctx.setFillColor(SKColor(red: 0.15, green: 0.18, blue: 0.25, alpha: 1.0).cgColor)
+            let patchW = w * 0.24
+            let patchH = h * 0.44
+            ctx.fillEllipse(in: CGRect(x: w * 0.18, y: h * 0.30, width: patchW, height: patchH))
+            ctx.fillEllipse(in: CGRect(x: w * 0.82 - patchW, y: h * 0.30, width: patchW, height: patchH))
+            
+            // Cute round white eyes inside patches
+            ctx.setFillColor(SKColor.white.cgColor)
+            let eyeR: CGFloat = h * 0.09
+            ctx.fillEllipse(in: CGRect(x: w * 0.30 - eyeR, y: h * 0.52 - eyeR, width: eyeR * 2, height: eyeR * 2))
+            ctx.fillEllipse(in: CGRect(x: w * 0.70 - eyeR, y: h * 0.52 - eyeR, width: eyeR * 2, height: eyeR * 2))
+            
+            // Black pupil with shine
+            ctx.setFillColor(SKColor(red: 0.1, green: 0.1, blue: 0.15, alpha: 1.0).cgColor)
+            ctx.fillEllipse(in: CGRect(x: w * 0.30 - eyeR * 0.6, y: h * 0.52 - eyeR * 0.6, width: eyeR * 1.2, height: eyeR * 1.2))
+            ctx.fillEllipse(in: CGRect(x: w * 0.70 - eyeR * 0.6, y: h * 0.52 - eyeR * 0.6, width: eyeR * 1.2, height: eyeR * 1.2))
+            ctx.setFillColor(SKColor.white.cgColor)
+            ctx.fillEllipse(in: CGRect(x: w * 0.30 - eyeR * 0.3, y: h * 0.54, width: eyeR * 0.5, height: eyeR * 0.5))
+            ctx.fillEllipse(in: CGRect(x: w * 0.70 - eyeR * 0.3, y: h * 0.54, width: eyeR * 0.5, height: eyeR * 0.5))
+            
+            // Cute nose dot
+            ctx.setFillColor(SKColor(red: 0.2, green: 0.2, blue: 0.25, alpha: 1.0).cgColor)
+            ctx.fillEllipse(in: CGRect(x: w * 0.46, y: h * 0.32, width: w * 0.08, height: h * 0.09))
+            
+        case .greenLass:
+            ctx.setFillColor(type.primaryColor.cgColor)
+            ctx.addPath(bodyPath)
+            ctx.fillPath()
+            
             ctx.setStrokeColor(SKColor(red: 0.15, green: 0.45, blue: 0.2, alpha: 1.0).cgColor)
             ctx.setLineWidth(2.2)
             ctx.move(to: CGPoint(x: w * 0.30, y: h * 0.85))
@@ -125,7 +159,6 @@ enum BearType: Int, CaseIterable {
             ctx.addQuadCurve(to: CGPoint(x: w * 0.70, y: h * 0.85), control: CGPoint(x: w * 0.60, y: h * 0.75))
             ctx.strokePath()
             
-            // Eyes with eyelashes
             ctx.setStrokeColor(SKColor(red: 0.1, green: 0.25, blue: 0.15, alpha: 1.0).cgColor)
             ctx.setLineWidth(2.0)
             ctx.move(to: CGPoint(x: w * 0.28, y: h * 0.46))
@@ -136,18 +169,15 @@ enum BearType: Int, CaseIterable {
             ctx.addLine(to: CGPoint(x: w * 0.77, y: h * 0.52))
             ctx.strokePath()
             
-            // Smile
             ctx.move(to: CGPoint(x: w * 0.44, y: h * 0.30))
             ctx.addQuadCurve(to: CGPoint(x: w * 0.56, y: h * 0.30), control: CGPoint(x: w * 0.50, y: h * 0.22))
             ctx.strokePath()
             
         case .orangeJoy:
-            // Body
             ctx.setFillColor(type.primaryColor.cgColor)
             ctx.addPath(bodyPath)
             ctx.fillPath()
             
-            // Arched happy closed eyes `^ ^`
             ctx.setStrokeColor(SKColor(red: 0.25, green: 0.12, blue: 0.05, alpha: 1.0).cgColor)
             ctx.setLineWidth(2.5)
             ctx.setLineCap(.round)
@@ -157,7 +187,6 @@ enum BearType: Int, CaseIterable {
             ctx.addQuadCurve(to: CGPoint(x: w * 0.76, y: h * 0.58), control: CGPoint(x: w * 0.68, y: h * 0.74))
             ctx.strokePath()
             
-            // Big open laughing mouth
             let mouthRect = CGRect(x: w * 0.30, y: h * 0.16, width: w * 0.40, height: h * 0.38)
             let mouthPath = CGPath(roundedRect: mouthRect, cornerWidth: h * 0.18, cornerHeight: h * 0.18, transform: nil)
             ctx.setFillColor(SKColor(red: 0.90, green: 0.22, blue: 0.15, alpha: 1.0).cgColor)
@@ -168,7 +197,6 @@ enum BearType: Int, CaseIterable {
             ctx.addPath(mouthPath)
             ctx.strokePath()
             
-            // Tongue inside mouth
             ctx.saveGState()
             ctx.addPath(mouthPath)
             ctx.clip()
@@ -177,7 +205,6 @@ enum BearType: Int, CaseIterable {
             ctx.restoreGState()
             
         case .cyanPeach:
-            // Split Body: Bottom Cyan, Top Peach
             ctx.saveGState()
             ctx.addPath(bodyPath)
             ctx.clip()
@@ -187,7 +214,6 @@ enum BearType: Int, CaseIterable {
             ctx.fill(CGRect(x: 0, y: 0, width: w, height: h * 0.46))
             ctx.restoreGState()
             
-            // Big bulbous nose in the middle
             let noseRect = CGRect(x: w * 0.40, y: h * 0.36, width: w * 0.20, height: h * 0.26)
             ctx.setFillColor(SKColor(red: 1.0, green: 0.68, blue: 0.58, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: noseRect)
@@ -195,37 +221,31 @@ enum BearType: Int, CaseIterable {
             ctx.setLineWidth(1.8)
             ctx.strokeEllipse(in: noseRect)
             
-            // Eyes
             let eyeY = h * 0.64
             ctx.setFillColor(SKColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.30, y: eyeY, width: 4.5, height: 4.5))
             ctx.fillEllipse(in: CGRect(x: w * 0.66, y: eyeY, width: 4.5, height: 4.5))
             
-            // Raised eyebrow
             ctx.setStrokeColor(SKColor(red: 0.15, green: 0.15, blue: 0.15, alpha: 1.0).cgColor)
             ctx.setLineWidth(1.8)
             ctx.move(to: CGPoint(x: w * 0.26, y: eyeY + 8))
             ctx.addLine(to: CGPoint(x: w * 0.36, y: eyeY + 12))
             ctx.strokePath()
             
-            // Side smirk
             ctx.move(to: CGPoint(x: w * 0.56, y: h * 0.26))
             ctx.addQuadCurve(to: CGPoint(x: w * 0.68, y: h * 0.32), control: CGPoint(x: w * 0.62, y: h * 0.24))
             ctx.strokePath()
             
         case .redMustache:
-            // Body
             ctx.setFillColor(type.primaryColor.cgColor)
             ctx.addPath(bodyPath)
             ctx.fillPath()
             
-            // Eyes
-            ctx.setFillColor(SKColor(red: 0.15, green: 0.1, blue: 0.15, alpha: 1.0).cgColor)
             let eyeR: CGFloat = h * 0.08
+            ctx.setFillColor(SKColor(red: 0.15, green: 0.1, blue: 0.15, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.32 - eyeR, y: h * 0.60 - eyeR, width: eyeR * 2, height: eyeR * 2))
             ctx.fillEllipse(in: CGRect(x: w * 0.68 - eyeR, y: h * 0.60 - eyeR, width: eyeR * 2, height: eyeR * 2))
             
-            // Big black mustache
             ctx.setFillColor(SKColor(red: 0.12, green: 0.15, blue: 0.25, alpha: 1.0).cgColor)
             let stachePath = CGMutablePath()
             stachePath.move(to: CGPoint(x: w * 0.5, y: h * 0.44))
@@ -239,12 +259,10 @@ enum BearType: Int, CaseIterable {
             ctx.fillPath()
             
         case .limeFrog:
-            // Body
             ctx.setFillColor(type.primaryColor.cgColor)
             ctx.addPath(bodyPath)
             ctx.fillPath()
             
-            // Wide-set small black dot eyes with white gleam
             let eyeY = h * 0.54
             ctx.setFillColor(SKColor(red: 0.1, green: 0.2, blue: 0.1, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.20, y: eyeY, width: 6.0, height: 6.0))
@@ -253,7 +271,6 @@ enum BearType: Int, CaseIterable {
             ctx.fillEllipse(in: CGRect(x: w * 0.22, y: eyeY + 2.5, width: 2.5, height: 2.5))
             ctx.fillEllipse(in: CGRect(x: w * 0.78, y: eyeY + 2.5, width: 2.5, height: 2.5))
             
-            // Cute gentle smile
             ctx.setStrokeColor(SKColor(red: 0.1, green: 0.25, blue: 0.1, alpha: 1.0).cgColor)
             ctx.setLineWidth(2.0)
             ctx.move(to: CGPoint(x: w * 0.38, y: h * 0.32))
@@ -261,7 +278,6 @@ enum BearType: Int, CaseIterable {
             ctx.strokePath()
             
         case .yellowStar:
-            // Pointed cat/star corners at top
             let earPath = CGMutablePath()
             earPath.move(to: CGPoint(x: w * 0.12, y: h * 0.70))
             earPath.addLine(to: CGPoint(x: w * 0.20, y: h * 0.95))
@@ -273,11 +289,9 @@ enum BearType: Int, CaseIterable {
             ctx.addPath(earPath)
             ctx.fillPath()
             
-            // Body
             ctx.addPath(bodyPath)
             ctx.fillPath()
             
-            // Anime sparkling kawaii eyes (2 gleams each)
             let eyeR: CGFloat = h * 0.11
             let eyeY = h * 0.54
             ctx.setFillColor(SKColor(red: 0.15, green: 0.12, blue: 0.05, alpha: 1.0).cgColor)
@@ -289,18 +303,15 @@ enum BearType: Int, CaseIterable {
             ctx.fillEllipse(in: CGRect(x: w * 0.34, y: eyeY - eyeR * 0.5, width: eyeR * 0.4, height: eyeR * 0.4))
             ctx.fillEllipse(in: CGRect(x: w * 0.74, y: eyeY - eyeR * 0.5, width: eyeR * 0.4, height: eyeR * 0.4))
             
-            // Open 'o' mouth
             ctx.setFillColor(SKColor(red: 0.95, green: 0.3, blue: 0.4, alpha: 1.0).cgColor)
             ctx.fillEllipse(in: CGRect(x: w * 0.46, y: h * 0.26, width: w * 0.08, height: h * 0.14))
         }
         
-        // Dark crisp border stroke around pill
         ctx.setStrokeColor(SKColor(red: 0.12, green: 0.15, blue: 0.18, alpha: 0.9).cgColor)
         ctx.setLineWidth(2.2)
         ctx.addPath(bodyPath)
         ctx.strokePath()
         
-        // 3D Top Highlight
         ctx.saveGState()
         ctx.addPath(bodyPath)
         ctx.clip()
@@ -315,7 +326,7 @@ enum BearType: Int, CaseIterable {
         return SKTexture(cgImage: cgImage)
     }
     
-    /// Generates the glowing cream-yellow capsule texture used when in the Clear State!
+    /// Generates glowing cream-yellow capsule texture for the Clear State.
     static func generateClearStateTexture(size: CGSize) -> SKTexture {
         let scale: CGFloat = 2.0
         let pixelWidth = max(Int(size.width * scale), 1)
@@ -338,17 +349,15 @@ enum BearType: Int, CaseIterable {
         ctx.scaleBy(x: scale, y: scale)
         let w = size.width
         let h = size.height
-        let cornerRadius: CGFloat = h * 0.42
+        let cornerRadius: CGFloat = h * 0.44
         
         let bodyRect = CGRect(x: 2, y: 2, width: w - 4, height: h - 4)
         let bodyPath = CGPath(roundedRect: bodyRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
         
-        // Soft cream/white filling
         ctx.setFillColor(SKColor(red: 1.0, green: 0.99, blue: 0.88, alpha: 1.0).cgColor)
         ctx.addPath(bodyPath)
         ctx.fillPath()
         
-        // Glowing bright golden yellow border
         ctx.setStrokeColor(SKColor(red: 1.0, green: 0.90, blue: 0.20, alpha: 1.0).cgColor)
         ctx.setLineWidth(3.5)
         ctx.addPath(bodyPath)
@@ -368,7 +377,7 @@ struct PhysicsCategory {
     static let floor: UInt32     = 0x1 << 2
 }
 
-// MARK: - Grid Point Struct for Pathfinding
+// MARK: - Grid Point Struct
 
 struct GridPoint: Hashable, CustomStringConvertible {
     var col: Int
@@ -422,7 +431,7 @@ class BearBlockNode: SKSpriteNode {
     }
     
     private func setupSelectionBorder(size: CGSize) {
-        let border = SKShapeNode(rectOf: CGSize(width: size.width + 4, height: size.height + 4), cornerRadius: size.height * 0.42)
+        let border = SKShapeNode(rectOf: CGSize(width: size.width + 4, height: size.height + 4), cornerRadius: size.height * 0.44)
         border.strokeColor = SKColor.white
         border.lineWidth = 3.0
         border.fillColor = SKColor.white.withAlphaComponent(0.25)
@@ -437,7 +446,6 @@ class BearBlockNode: SKSpriteNode {
         self.selectionBorder = border
     }
     
-    /// Switches to the glowing cream capsule clear-state texture and stays solid.
     func enterClearState() {
         guard !isClearing else { return }
         isClearing = true
@@ -450,7 +458,6 @@ class BearBlockNode: SKSpriteNode {
         self.run(SKAction.repeatForever(SKAction.sequence([grow, shrink])), withKey: "clear_pulse")
     }
     
-    /// Pops with scaling and removes from scene so blocks above can drop.
     func popAndRemove(completion: @escaping () -> Void) {
         self.removeAction(forKey: "clear_pulse")
         self.physicsBody = nil
@@ -479,8 +486,11 @@ enum GameState {
 
 class GameScene: SKScene, SKPhysicsContactDelegate {
     
-    // MARK: - Grid & Dimensions
-    private let columnsCount: Int = 7
+    // MARK: - Safe Area & Layout Configuration
+    var safeAreaTopInset: CGFloat = 54.0 // Default for notch/dynamic island
+    
+    // 6 Columns across (matches screenshot 2 exactly!)
+    private let columnsCount: Int = 6
     private var blockSize: CGSize = .zero
     private var playableRect: CGRect = .zero
     private var floorY: CGFloat = 0
@@ -489,12 +499,12 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var rowHeight: CGFloat = 0
     private var gridStartX: CGFloat = 0
     
-    // MARK: - Smooth Scroll & Container Layer
+    // MARK: - Smooth Scroll & Layer Container
     private var gameLayer = SKNode()
     private var floorNode = SKNode()
     private var spawnedBelowCount: Int = 0
     private var nextSpawnThreshold: CGFloat = 0
-    private var baseRiseSpeed: Double = 14.0 // Continuous rising speed in points/sec
+    private var baseRiseSpeed: Double = 8.0 // Calm, smooth, satisfying arcade speed
     private var lastUpdateTime: TimeInterval = 0
     
     // MARK: - Selection & Clear State
@@ -507,49 +517,54 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var gameState: GameState = .ready
     private var score: Int = 0 {
         didSet {
-            scoreLabel.text = String(format: "%07d", score)
+            updateScoreLabel()
         }
     }
     private var level: Int = 1 {
         didSet {
-            levelLabel.text = String(format: "Lv %02d", level)
+            updateLevelLabel()
         }
     }
     private var levelProgress: CGFloat = 0.0
     private var comboCount: Int = 0
     
-    // MARK: - Danger Line
+    // MARK: - Electric Laser Danger Line
+    private var laserGlowNode = SKShapeNode()
+    private var laserCoreNode = SKShapeNode()
+    private var lastLaserJitterTime: TimeInterval = 0
     private var dangerStartTime: TimeInterval? = nil
     private let dangerGracePeriod: TimeInterval = 2.5
     
-    // MARK: - Textures
-    private var bearTextures: [BearType: SKTexture] = [:]
-    private var clearStateTexture: SKTexture?
+    // MARK: - Pre-Warmed Texture Cache
+    private static var cachedBearTextures: [BearType: SKTexture] = [:]
+    private static var cachedClearTexture: SKTexture? = nil
     
     // MARK: - UI Nodes
     private var hudNode = SKNode()
-    private var scoreLabel = SKLabelNode(fontNamed: "AvenirNext-Heavy")
-    private var levelLabel = SKLabelNode(fontNamed: "AvenirNext-Heavy")
+    private var scoreLabel = SKLabelNode()
+    private var levelLabel = SKLabelNode()
     private var levelProgressBar = SKShapeNode()
-    private var dangerLineNode = SKShapeNode()
-    private var dangerWarningLabel = SKLabelNode(fontNamed: "AvenirNext-Heavy")
+    private var dangerWarningLabel = SKLabelNode()
     private var gameOverOverlay = SKNode()
     
-    // MARK: - Touch & Drag Tracking
+    // MARK: - Touch Tracking
     private var touchStartLocation: CGPoint?
     private var lastTouchLocation: CGPoint?
     private var isDraggingBoard: Bool = false
     private var totalDragDeltaY: CGFloat = 0
     
-    // MARK: - Lifecycle
+    // MARK: - Scene Lifecycle
     
     override func didMove(to view: SKView) {
+        // Pre-warm sound synthesizer
+        _ = SoundManager.shared
+        
         setupPlayableArea()
         generateTextures()
         setupBackgroundArt()
         setupGameLayerAndBoundaries()
         setupHUD()
-        setupDangerLine()
+        setupElectricLaserLine()
         
         physicsWorld.gravity = CGVector(dx: 0.0, dy: -24.0)
         physicsWorld.contactDelegate = self
@@ -560,34 +575,37 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     // MARK: - Geometry Setup
     
     private func setupPlayableArea() {
-        let safeInsetBottom: CGFloat = 55.0
-        let safeInsetTop: CGFloat = 115.0
+        let safeTop = max(safeAreaTopInset, 48.0)
+        let safeBottom: CGFloat = 45.0
         
         let playWidth = size.width - 24.0
-        let playHeight = size.height - safeInsetBottom - safeInsetTop
+        let hudHeight: CGFloat = 65.0
+        let playHeight = size.height - safeTop - safeBottom - hudHeight
         
         playableRect = CGRect(
             x: 12.0,
-            y: safeInsetBottom,
+            y: safeBottom,
             width: playWidth,
             height: playHeight
         )
         
-        floorY = playableRect.minY + 35.0
-        dangerLineY = playableRect.maxY - 10.0
+        floorY = playableRect.minY + 45.0
+        dangerLineY = size.height - safeTop - 70.0
         
-        let colSpacing: CGFloat = 2.0
+        let colSpacing: CGFloat = 3.0
         colWidth = (playableRect.width - CGFloat(columnsCount - 1) * colSpacing) / CGFloat(columnsCount)
-        rowHeight = colWidth * 0.72
+        rowHeight = colWidth * 0.65 // Wide cute pill ratio
         blockSize = CGSize(width: colWidth, height: rowHeight)
         gridStartX = playableRect.minX + colWidth / 2
     }
     
     private func generateTextures() {
-        for type in BearType.allCases {
-            bearTextures[type] = BearType.generateTexture(for: type, size: blockSize)
+        if GameScene.cachedBearTextures.isEmpty {
+            for type in BearType.allCases {
+                GameScene.cachedBearTextures[type] = BearType.generateTexture(for: type, size: blockSize)
+            }
+            GameScene.cachedClearTexture = BearType.generateClearStateTexture(size: blockSize)
         }
-        clearStateTexture = BearType.generateClearStateTexture(size: blockSize)
     }
     
     // MARK: - Background Art
@@ -693,10 +711,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         addFloatingStar(at: CGPoint(x: size.width * 0.48, y: size.height * 0.64), scale: 0.65, in: bgNode)
         addFloatingStar(at: CGPoint(x: size.width * 0.12, y: size.height * 0.62), scale: 0.55, in: bgNode)
         
-        // Bottom Scalloped Bushes (Fixed foreground at floor level)
+        // Seamless Bottom Bush Mask (zPosition = 100 to completely hide spawning blocks)
         let bushNode = SKNode()
-        bushNode.position = CGPoint(x: 0, y: floorY - 18)
-        bushNode.zPosition = 50
+        bushNode.position = CGPoint(x: 0, y: floorY - 14)
+        bushNode.zPosition = 100
         let bushCount = 10
         let bushRadius = size.width / CGFloat(bushCount) * 0.65
         for i in 0..<bushCount {
@@ -707,7 +725,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             b.strokeColor = .clear
             bushNode.addChild(b)
         }
-        let bushBottom = SKShapeNode(rect: CGRect(x: 0, y: -120, width: size.width, height: 120))
+        let bushBottom = SKShapeNode(rect: CGRect(x: 0, y: -200, width: size.width, height: 200))
         bushBottom.fillColor = SKColor(red: 0.28, green: 0.48, blue: 0.18, alpha: 1.0)
         bushBottom.strokeColor = .clear
         bushNode.addChild(bushBottom)
@@ -756,7 +774,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         gameLayer.zPosition = 10
         addChild(gameLayer)
         
-        // Kinematic floor node inside gameLayer supporting the stack
         floorNode.position = CGPoint(x: size.width / 2, y: floorY)
         let floorBody = SKPhysicsBody(edgeFrom: CGPoint(x: -size.width, y: 0), to: CGPoint(x: size.width, y: 0))
         floorBody.categoryBitMask = PhysicsCategory.floor
@@ -766,7 +783,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         floorNode.physicsBody = floorBody
         gameLayer.addChild(floorNode)
         
-        // Tall vertical side walls in gameLayer
         let leftWall = SKNode()
         leftWall.position = CGPoint(x: playableRect.minX - 2, y: 0)
         let leftBody = SKPhysicsBody(edgeFrom: CGPoint(x: 0, y: -size.height * 10), to: CGPoint(x: 0, y: size.height * 10))
@@ -786,34 +802,34 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         gameLayer.addChild(rightWall)
     }
     
-    // MARK: - HUD & Danger Line
+    // MARK: - Safe-Area Aware HUD & Bubble Font Styling
     
     private func setupHUD() {
-        hudNode.zPosition = 100
+        hudNode.zPosition = 120
         addChild(hudNode)
         
-        let topY = size.height - 45.0
+        let safeTop = max(safeAreaTopInset, 48.0)
+        let topY = size.height - safeTop - 4.0
         
-        levelLabel.text = "Lv 01"
-        levelLabel.fontSize = 24
-        levelLabel.fontColor = SKColor.white
+        // Level Label: `Lv 01` (Rounded Bubble Font)
         levelLabel.horizontalAlignmentMode = .left
         levelLabel.position = CGPoint(x: playableRect.minX + 2, y: topY)
         hudNode.addChild(levelLabel)
+        updateLevelLabel()
         
-        scoreLabel.text = "0000000"
-        scoreLabel.fontSize = 24
-        scoreLabel.fontColor = SKColor.white
+        // Score Label: `0000000` (Rounded Bubble Font)
         scoreLabel.horizontalAlignmentMode = .left
         scoreLabel.position = CGPoint(x: playableRect.minX + 2, y: topY - 26)
         hudNode.addChild(scoreLabel)
+        updateScoreLabel()
         
-        let barX = playableRect.minX + 90.0
+        // Progress Bar
+        let barX = playableRect.minX + 88.0
         let barY = topY - 14.0
-        let barW: CGFloat = 110.0
+        let barW: CGFloat = 105.0
         let barH: CGFloat = 26.0
         
-        let barBg = SKShapeNode(rect: CGRect(x: barX, y: barY, width: barW, height: barH), cornerRadius: 5)
+        let barBg = SKShapeNode(rect: CGRect(x: barX, y: barY, width: barW, height: barH), cornerRadius: 6)
         barBg.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.9)
         barBg.strokeColor = SKColor.white
         barBg.lineWidth = 2.5
@@ -824,21 +840,23 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         levelProgressBar.strokeColor = .clear
         hudNode.addChild(levelProgressBar)
         
-        let slot1X = barX + barW + 10.0
-        let slot1 = SKShapeNode(rect: CGRect(x: slot1X, y: barY, width: 44, height: barH), cornerRadius: 5)
+        // Powerup Item Boxes
+        let slot1X = barX + barW + 8.0
+        let slot1 = SKShapeNode(rect: CGRect(x: slot1X, y: barY, width: 40, height: barH), cornerRadius: 6)
         slot1.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.6)
         slot1.strokeColor = SKColor.white
         slot1.lineWidth = 2.5
         hudNode.addChild(slot1)
         
-        let slot2 = SKShapeNode(rect: CGRect(x: slot1X + 50.0, y: barY, width: 44, height: barH), cornerRadius: 5)
+        let slot2 = SKShapeNode(rect: CGRect(x: slot1X + 46.0, y: barY, width: 40, height: barH), cornerRadius: 6)
         slot2.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.6)
         slot2.strokeColor = SKColor.white
         slot2.lineWidth = 2.5
         hudNode.addChild(slot2)
         
-        let pauseBtn = SKShapeNode(circleOfRadius: 16)
-        pauseBtn.position = CGPoint(x: playableRect.maxX - 16, y: barY + barH / 2)
+        // Pause Button Circle `❚❚`
+        let pauseBtn = SKShapeNode(circleOfRadius: 15)
+        pauseBtn.position = CGPoint(x: playableRect.maxX - 15, y: barY + barH / 2)
         pauseBtn.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.9)
         pauseBtn.strokeColor = SKColor.white
         pauseBtn.lineWidth = 2.5
@@ -846,42 +864,95 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         let pauseIcon = SKLabelNode(fontNamed: "AvenirNext-Heavy")
         pauseIcon.text = "❚❚"
-        pauseIcon.fontSize = 12
+        pauseIcon.fontSize = 11
         pauseIcon.fontColor = SKColor.white
         pauseIcon.verticalAlignmentMode = .center
-        pauseIcon.position = CGPoint(x: playableRect.maxX - 16, y: barY + barH / 2)
+        pauseIcon.position = CGPoint(x: playableRect.maxX - 15, y: barY + barH / 2)
         hudNode.addChild(pauseIcon)
     }
     
-    private func setupDangerLine() {
-        let path = CGMutablePath()
-        let segments = 24
-        let segW = playableRect.width / CGFloat(segments)
-        path.move(to: CGPoint(x: playableRect.minX, y: dangerLineY))
-        for i in 1...segments {
-            let x = playableRect.minX + CGFloat(i) * segW
-            let y = dangerLineY + ((i % 2 == 0) ? 5.0 : -5.0)
-            path.addLine(to: CGPoint(x: x, y: y))
+    private func updateLevelLabel() {
+        let text = String(format: "Lv %02d", level)
+        levelLabel.attributedText = makeBubbleAttributedString(text: text, fontSize: 23)
+    }
+    
+    private func updateScoreLabel() {
+        let text = String(format: "%07d", score)
+        scoreLabel.attributedText = makeBubbleAttributedString(text: text, fontSize: 23)
+    }
+    
+    /// Creates authentic comic bubble font string with white fill and black shadow/stroke.
+    private func makeBubbleAttributedString(text: String, fontSize: CGFloat) -> NSAttributedString {
+        #if os(iOS)
+        let font: UIFont
+        if let rounded = UIFont(name: "AvenirNext-Heavy", size: fontSize) {
+            font = rounded
+        } else {
+            font = UIFont.systemFont(ofSize: fontSize, weight: .black)
         }
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: UIColor.white,
+            .strokeColor: UIColor(red: 0.12, green: 0.15, blue: 0.25, alpha: 1.0),
+            .strokeWidth: -4.0
+        ]
+        return NSAttributedString(string: text, attributes: attrs)
+        #else
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .black)
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white,
+            .strokeColor: NSColor(red: 0.12, green: 0.15, blue: 0.25, alpha: 1.0),
+            .strokeWidth: -4.0
+        ]
+        return NSAttributedString(string: text, attributes: attrs)
+        #endif
+    }
+    
+    // MARK: - Electric Jagged Laser Line
+    
+    private func setupElectricLaserLine() {
+        // Outer Cyan Glow
+        laserGlowNode.strokeColor = SKColor(red: 0.0, green: 0.90, blue: 1.0, alpha: 0.95)
+        laserGlowNode.lineWidth = 5.5
+        laserGlowNode.glowWidth = 6.0
+        laserGlowNode.zPosition = 60
+        addChild(laserGlowNode)
         
-        dangerLineNode.path = path
-        dangerLineNode.strokeColor = SKColor.white
-        dangerLineNode.lineWidth = 3.5
-        dangerLineNode.glowWidth = 2.0
-        dangerLineNode.zPosition = 60
+        // Intense White Core
+        laserCoreNode.strokeColor = SKColor.white
+        laserCoreNode.lineWidth = 2.5
+        laserCoreNode.zPosition = 61
+        addChild(laserCoreNode)
         
-        let pulseUp = SKAction.fadeAlpha(to: 0.4, duration: 0.6)
-        let pulseDown = SKAction.fadeAlpha(to: 1.0, duration: 0.6)
-        dangerLineNode.run(SKAction.repeatForever(SKAction.sequence([pulseUp, pulseDown])))
-        addChild(dangerLineNode)
+        updateElectricLaserPath(jitter: false)
         
         dangerWarningLabel.text = "⚠️ DANGER! ⚠️"
         dangerWarningLabel.fontSize = 16
         dangerWarningLabel.fontColor = SKColor(red: 1.0, green: 0.3, blue: 0.3, alpha: 1.0)
-        dangerWarningLabel.position = CGPoint(x: size.width / 2, y: dangerLineY - 24)
+        dangerWarningLabel.position = CGPoint(x: size.width / 2, y: dangerLineY - 26)
         dangerWarningLabel.alpha = 0.0
-        dangerWarningLabel.zPosition = 61
+        dangerWarningLabel.zPosition = 62
         addChild(dangerWarningLabel)
+    }
+    
+    /// Generates rapid crackling zigzag laser vertices.
+    private func updateElectricLaserPath(jitter: Bool) {
+        let path = CGMutablePath()
+        let segments = 22
+        let segW = playableRect.width / CGFloat(segments)
+        path.move(to: CGPoint(x: playableRect.minX, y: dangerLineY))
+        
+        for i in 1...segments {
+            let x = playableRect.minX + CGFloat(i) * segW
+            let amp: CGFloat = (i % 2 == 0) ? 6.0 : -6.0
+            let jitterDelta = jitter ? CGFloat.random(in: -2.5...2.5) : 0.0
+            let y = dangerLineY + amp + jitterDelta
+            path.addLine(to: CGPoint(x: x, y: y))
+        }
+        
+        laserGlowNode.path = path
+        laserCoreNode.path = path
     }
     
     // MARK: - Game Lifecycle & Start
@@ -916,10 +987,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         for row in 0..<4 {
             let rowY = floorY + blockSize.height / 2 + CGFloat(row) * rowStep
             for col in 0..<columnsCount {
-                let x = gridStartX + CGFloat(col) * (colWidth + 2.0)
+                let x = gridStartX + CGFloat(col) * (colWidth + 3.0)
                 guard let randomType = BearType.allCases.randomElement(),
-                      let tex = bearTextures[randomType],
-                      let clearTex = clearStateTexture else { continue }
+                      let tex = GameScene.cachedBearTextures[randomType],
+                      let clearTex = GameScene.cachedClearTexture else { continue }
                 
                 let block = BearBlockNode(type: randomType, size: blockSize, normalTex: tex, clearTex: clearTex)
                 block.position = CGPoint(x: x, y: rowY)
@@ -930,14 +1001,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     
     // MARK: - Smooth Continuous Rise & Real-Time Drag-Up
     
-    /// Shifts the gameLayer upward smoothly and spawns new rows emerging from below.
     private func applyRiseOffset(_ dy: CGFloat, isManualDrag: Bool = false) {
         guard gameState == .playing, dy > 0 else { return }
-        
         gameLayer.position.y += dy
         
         if isManualDrag {
-            // Reward manual drag-up with slight score bonus
             score += Int(dy * 0.5)
         }
         
@@ -948,20 +1016,19 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    /// Spawns a new row right beneath the lowest row so it smoothly rises from behind the bushes.
+    /// Spawns a new row completely masked behind the bottom bushes.
     private func spawnRowBelow() {
         spawnedBelowCount += 1
         let rowStep = blockSize.height + 2.0
         let rowY = floorY + blockSize.height / 2 - CGFloat(spawnedBelowCount) * rowStep
         
-        // Shift floor node down inside gameLayer to keep supporting the stack
         floorNode.position.y = floorY - CGFloat(spawnedBelowCount) * rowStep
         
         for col in 0..<columnsCount {
-            let x = gridStartX + CGFloat(col) * (colWidth + 2.0)
+            let x = gridStartX + CGFloat(col) * (colWidth + 3.0)
             guard let randomType = BearType.allCases.randomElement(),
-                  let tex = bearTextures[randomType],
-                  let clearTex = clearStateTexture else { continue }
+                  let tex = GameScene.cachedBearTextures[randomType],
+                  let clearTex = GameScene.cachedClearTexture else { continue }
             
             let block = BearBlockNode(type: randomType, size: blockSize, normalTex: tex, clearTex: clearTex)
             block.position = CGPoint(x: x, y: rowY)
@@ -972,7 +1039,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     // MARK: - Exact Bear Links / Lianliankan 2-Turn Pathfinding (Onet)
     
     private func gridPoint(for block: BearBlockNode) -> GridPoint {
-        let col = Int(round((block.position.x - gridStartX) / (colWidth + 2.0)))
+        let col = Int(round((block.position.x - gridStartX) / (colWidth + 3.0)))
         let relativeY = block.position.y - (floorNode.position.y + blockSize.height / 2)
         let row = Int(round(relativeY / (blockSize.height + 2.0)))
         return GridPoint(col: max(0, min(columnsCount - 1, col)), row: max(0, row))
@@ -985,24 +1052,18 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         } else if gp.col == columnsCount {
             x = playableRect.maxX + 10
         } else {
-            x = gridStartX + CGFloat(gp.col) * (colWidth + 2.0)
+            x = gridStartX + CGFloat(gp.col) * (colWidth + 3.0)
         }
         
         let y = floorNode.position.y + blockSize.height / 2 + CGFloat(gp.row) * (blockSize.height + 2.0)
         return CGPoint(x: x, y: y)
     }
     
-    /// Checks if a grid cell is free of solid obstacles.
-    /// CRITICAL: Blocks currently in the Clear State are treated as free/passable space!
     private func isCellFree(grid: [GridPoint: BearBlockNode], pt: GridPoint, start: GridPoint, target: GridPoint, maxRow: Int) -> Bool {
         if pt == start || pt == target { return true }
-        
-        // Perimeter outside the board is always free!
         if pt.col <= -1 || pt.col >= columnsCount || pt.row <= -1 || pt.row > maxRow {
             return true
         }
-        
-        // Solid non-clearing blocks block the path. Clearing blocks are passable!
         if let block = grid[pt], block.parent != nil, !block.isClearing {
             return false
         }
@@ -1036,7 +1097,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         return false
     }
     
-    /// Finds a valid connecting path with at most 2 turns (3 segments) between two blocks.
     private func findLinkPath(from start: GridPoint, to target: GridPoint) -> [CGPoint]? {
         var gridLookup: [GridPoint: BearBlockNode] = [:]
         let activeBlocks = gameLayer.children.compactMap { $0 as? BearBlockNode }
@@ -1049,7 +1109,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             maxRow = max(maxRow, gp.row)
         }
         
-        // 1. Direct Straight Line (0 Turns / 1 Segment)
+        // 1. Direct Straight Line (0 Turns)
         if (start.col == target.col || start.row == target.row) &&
             isStraightLineClear(grid: gridLookup, from: start, to: target, start: start, target: target, maxRow: maxRow) {
             return [localPoint(for: start), localPoint(for: target)]
@@ -1098,7 +1158,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         return nil
     }
     
-    // MARK: - 2-Block Matching Flow & Delayed Clear State
+    // MARK: - 2-Block Matching Flow & Audio Chimes
     
     private func handleBlockSelection(_ block: BearBlockNode) {
         guard gameState == .playing, !block.isClearing else { return }
@@ -1106,6 +1166,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         guard let first = selectedBlock else {
             selectedBlock = block
             block.isSelected = true
+            SoundManager.shared.playSelect()
             triggerHaptic(style: .light)
             return
         }
@@ -1113,6 +1174,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         if first == block {
             first.isSelected = false
             selectedBlock = nil
+            SoundManager.shared.playSelect()
             return
         }
         
@@ -1120,6 +1182,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             first.isSelected = false
             selectedBlock = block
             block.isSelected = true
+            SoundManager.shared.playSelect()
             triggerHaptic(style: .light)
             return
         }
@@ -1138,6 +1201,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
                 SKAction.moveBy(x: -4, y: 0, duration: 0.04)
             ])
             block.run(shake)
+            SoundManager.shared.playError()
             triggerHaptic(style: .rigid)
         }
     }
@@ -1159,6 +1223,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
         
         clearStateEndTime = now + clearDuration
+        
+        // Play ascending xylophone combo audio chime!
+        SoundManager.shared.playCombo(index: comboCount)
         
         let baseGain = 100
         let totalGain = baseGain * comboCount
@@ -1224,9 +1291,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     }
     
     private func updateLevelProgressBar() {
-        let barX = playableRect.minX + 90.0 + 2.0
-        let barY = size.height - 45.0 - 14.0 + 2.0
-        let barMaxW: CGFloat = 110.0 - 4.0
+        let safeTop = max(safeAreaTopInset, 48.0)
+        let topY = size.height - safeTop - 4.0
+        let barX = playableRect.minX + 88.0 + 2.0
+        let barY = topY - 14.0 + 2.0
+        let barMaxW: CGFloat = 105.0 - 4.0
         let barH: CGFloat = 26.0 - 4.0
         let currentW = barMaxW * min(1.0, levelProgress)
         
@@ -1244,16 +1313,22 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         lastUpdateTime = currentTime
         
         // 1. Smooth Continuous Upward Scroll
-        let currentSpeed = baseRiseSpeed + Double(level - 1) * 3.0
+        let currentSpeed = baseRiseSpeed + Double(level - 1) * 2.0
         let autoRise = CGFloat(currentSpeed * dt)
         applyRiseOffset(autoRise, isManualDrag: false)
         
-        // 2. Check if active Clear State has expired
+        // 2. Animate Crackling Electric Laser Line
+        if currentTime - lastLaserJitterTime > 0.06 {
+            lastLaserJitterTime = currentTime
+            updateElectricLaserPath(jitter: true)
+        }
+        
+        // 3. Clear State Expiration -> Pop Bubbles!
         if !clearingBlocks.isEmpty && CACurrentMediaTime() >= clearStateEndTime {
             finalizeClearingBlocks()
         }
         
-        // 3. Danger Line Check (World Space)
+        // 4. Danger Line Overflow Check
         let activeBlocks = gameLayer.children.compactMap { $0 as? BearBlockNode }
         var isOverflowing = false
         for b in activeBlocks {
@@ -1281,6 +1356,9 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let blocksToPop = clearingBlocks
         clearingBlocks.removeAll()
         comboCount = 0
+        
+        // Play bubble pop sound!
+        SoundManager.shared.playPop()
         
         for block in blocksToPop {
             if block.parent != nil {
@@ -1318,6 +1396,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         dangerWarningLabel.alpha = 0.0
         selectedBlock = nil
         triggerHaptic(style: .heavy)
+        SoundManager.shared.playError()
         
         for b in gameLayer.children.compactMap({ $0 as? BearBlockNode }) {
             b.physicsBody?.isDynamic = false
@@ -1397,7 +1476,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private func handleTouchMoved(at location: CGPoint) {
         guard gameState == .playing, let last = lastTouchLocation else { return }
         let dy = location.y - last.y
-        if dy > 0 { // Dragging UP
+        if dy > 0 {
             totalDragDeltaY += dy
             if totalDragDeltaY > 8.0 {
                 isDraggingBoard = true
@@ -1411,7 +1490,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         guard gameState == .playing else { return }
         
         if !isDraggingBoard {
-            // Player performed a tap! Check if a block was tapped
             let localPoint = convert(location, to: gameLayer)
             let tappedNodes = gameLayer.nodes(at: localPoint)
             if let block = tappedNodes.compactMap({ $0 as? BearBlockNode }).first {
