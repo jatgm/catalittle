@@ -2,9 +2,9 @@
 //  SoundManager.swift
 //  Catalittle
 //
-//  Rock-solid, zero-crash audio synthesizer and player for Bearalot.
-//  Pre-renders WAV sound effects (bubble pops & ascending xylophone chimes)
-//  and plays them with zero latency using pre-warmed AVAudioPlayer pools.
+//  Rock-solid audio synthesizer and player for Bearalot.
+//  Synthesizes shimmering Glockenspiel / Bell chimes and bubble pops
+//  into pre-rendered WAV files, played with zero latency via AVAudioPlayer pools.
 //
 
 import Foundation
@@ -41,20 +41,19 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
         let sampleRate: Double = 44100.0
         let tempDir = FileManager.default.temporaryDirectory
         
-        // 1. Generate & Cache Bubble Pop WAV
+        // 1. Generate Bubble Pop WAV
         let popData = generatePopWAVData(sampleRate: sampleRate)
         let popURL = tempDir.appendingPathComponent("bearalot_pop.wav")
         try? popData.write(to: popURL)
         
-        // Create pool of 4 pop players for rapid simultaneous block pops
-        for _ in 0..<4 {
+        for _ in 0..<6 {
             if let player = try? AVAudioPlayer(contentsOf: popURL) {
                 player.prepareToPlay()
                 popPlayers.append(player)
             }
         }
         
-        // 2. Generate & Cache Tap Select WAV
+        // 2. Generate Tap Select WAV
         let selectData = generateTapWAVData(sampleRate: sampleRate)
         let selectURL = tempDir.appendingPathComponent("bearalot_select.wav")
         try? selectData.write(to: selectURL)
@@ -63,7 +62,7 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
             selectPlayer = player
         }
         
-        // 3. Generate & Cache Error WAV
+        // 3. Generate Error WAV
         let errorData = generateErrorWAVData(sampleRate: sampleRate)
         let errorURL = tempDir.appendingPathComponent("bearalot_error.wav")
         try? errorData.write(to: errorURL)
@@ -72,12 +71,12 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
             errorPlayer = player
         }
         
-        // 4. Generate Ascending Xylophone Chimes (C5 to G6)
+        // 4. Generate Shimmering Glockenspiel / Bell Chimes (C5 to G6)
         let frequencies: [Double] = [
-            523.25, // C5 (1x)
-            659.25, // E5 (2x)
-            783.99, // G5 (3x)
-            880.00, // A5 (4x)
+            523.25,  // C5 (1x)
+            659.25,  // E5 (2x)
+            783.99,  // G5 (3x)
+            880.00,  // A5 (4x)
             1046.50, // C6 (5x)
             1174.66, // D6 (6x)
             1318.51, // E6 (7x)
@@ -85,10 +84,10 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
         ]
         
         for (i, freq) in frequencies.enumerated() {
-            let chimeData = generateXylophoneWAVData(frequency: freq, sampleRate: sampleRate)
-            let chimeURL = tempDir.appendingPathComponent("bearalot_combo_\(i).wav")
-            try? chimeData.write(to: chimeURL)
-            if let player = try? AVAudioPlayer(contentsOf: chimeURL) {
+            let bellData = generateGlockenspielBellWAVData(frequency: freq, sampleRate: sampleRate)
+            let bellURL = tempDir.appendingPathComponent("bearalot_bell_\(i).wav")
+            try? bellData.write(to: bellURL)
+            if let player = try? AVAudioPlayer(contentsOf: bellURL) {
                 player.prepareToPlay()
                 comboPlayers.append(player)
             }
@@ -123,10 +122,11 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
         errorPlayer?.play()
     }
     
-    // MARK: - Procedural WAV Data Generators
+    // MARK: - Procedural Sound Synthesizers
     
+    /// Bubbly Pop: Swift downward frequency sweep with resonant pop envelope.
     private func generatePopWAVData(sampleRate: Double) -> Data {
-        let duration: Double = 0.09
+        let duration: Double = 0.085
         let numSamples = Int(sampleRate * duration)
         var samples = [Int16](repeating: 0, count: numSamples)
         var phase: Double = 0.0
@@ -134,53 +134,63 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
         for i in 0..<numSamples {
             let t = Double(i) / sampleRate
             let progress = t / duration
-            let freq = 1050.0 * (1.0 - progress * 0.78)
+            let freq = 1150.0 * (1.0 - progress * 0.80)
             phase += 2.0 * .pi * freq / sampleRate
-            let envelope = exp(-progress * 8.0) * sin(progress * .pi)
-            let sampleVal = sin(phase) * envelope * 0.85
+            let envelope = exp(-progress * 8.5) * sin(progress * .pi)
+            let sampleVal = sin(phase) * envelope * 0.90
             samples[i] = Int16(max(-32767, min(32767, sampleVal * 32767)))
         }
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
     }
     
-    private func generateXylophoneWAVData(frequency: Double, sampleRate: Double) -> Data {
-        let duration: Double = 0.42
+    /// Shimmering Glockenspiel / Celesta / Bell:
+    /// Pure fundamental + crystalline high inharmonic metallic overtones with sparkling ring decay.
+    private func generateGlockenspielBellWAVData(frequency: Double, sampleRate: Double) -> Data {
+        let duration: Double = 0.50
         let numSamples = Int(sampleRate * duration)
         var samples = [Int16](repeating: 0, count: numSamples)
         
         var phase1: Double = 0.0
         var phase2: Double = 0.0
         var phase3: Double = 0.0
+        var phase4: Double = 0.0
         
         for i in 0..<numSamples {
             let t = Double(i) / sampleRate
             let progress = t / duration
             
+            // Glockenspiel / Celesta Bar Physics: Modes at 1.0x, 2.756x, 5.404x, and metal ping at 8.93x
             phase1 += 2.0 * .pi * frequency / sampleRate
             phase2 += 2.0 * .pi * (frequency * 2.756) / sampleRate
             phase3 += 2.0 * .pi * (frequency * 5.404) / sampleRate
+            phase4 += 2.0 * .pi * (frequency * 8.933) / sampleRate
             
-            let env1 = exp(-progress * 7.5)
-            let env2 = exp(-progress * 16.0) * 0.4
-            let env3 = exp(-progress * 26.0) * 0.2
+            // Envelopes: Fundamental rings longest, upper metallic harmonics sparkle and fade
+            let env1 = exp(-progress * 5.5)
+            let env2 = exp(-progress * 11.0) * 0.45
+            let env3 = exp(-progress * 20.0) * 0.22
+            let env4 = exp(-progress * 35.0) * 0.15 // Initial metallic mallet ping
             
-            let sampleVal = (sin(phase1) * env1 + sin(phase2) * env2 + sin(phase3) * env3) * 0.85
+            // Subtle musical bell shimmer
+            let shimmer = 1.0 + 0.05 * sin(2.0 * .pi * 6.0 * t)
+            
+            let sampleVal = (sin(phase1) * env1 + sin(phase2) * env2 + sin(phase3) * env3 + sin(phase4) * env4) * shimmer * 0.85
             samples[i] = Int16(max(-32767, min(32767, sampleVal * 32767)))
         }
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))
     }
     
     private func generateTapWAVData(sampleRate: Double) -> Data {
-        let duration: Double = 0.035
+        let duration: Double = 0.03
         let numSamples = Int(sampleRate * duration)
         var samples = [Int16](repeating: 0, count: numSamples)
         var phase: Double = 0.0
         
         for i in 0..<numSamples {
             let progress = Double(i) / Double(numSamples)
-            phase += 2.0 * .pi * 1400.0 / sampleRate
-            let env = exp(-progress * 16.0)
-            let sampleVal = sin(phase) * env * 0.5
+            phase += 2.0 * .pi * 1500.0 / sampleRate
+            let env = exp(-progress * 18.0)
+            let sampleVal = sin(phase) * env * 0.45
             samples[i] = Int16(max(-32767, min(32767, sampleVal * 32767)))
         }
         return createWAVFile(samples: samples, sampleRate: Int(sampleRate))

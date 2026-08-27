@@ -3,12 +3,11 @@
 //  Catalittle
 //
 //  A complete, faithful clone of "Bearalot" / "Bear Links" built in Swift & SpriteKit.
-//  - Spacious top margin with 0 Dynamic Island overlap on iPhone 16/17.
-//  - Perfectly seamless bottom floor with ZERO gap against the dark green grass scallops.
-//  - Parallax scrolling background and lively waving grass.
-//  - 6-column grid with authentic Bearalot character pills (including Panda Bear).
-//  - Electric crackling laser ceiling.
-//  - 100% crash-free bounded pathfinder and instant bubble pop + xylophone audio.
+//  - Pauses scrolling during the Clear State until blocks finish clearing.
+//  - Instant kill upon touching the thick, ultra-bright crackling laser line.
+//  - Horizontal X-axis infinite scrolling grass at the bottom floor.
+//  - Simultaneous Bubble Pop + Glockenspiel/Bell chime on match.
+//  - Bounded 2-turn Lianliankan pathfinding, parallax background, and safe-area aware HUD.
 //
 
 import SpriteKit
@@ -494,11 +493,17 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var parallaxBgLayer = SKNode()
     private var gameLayer = SKNode()
     private var floorNode = SKNode()
-    private var animatedGrassNode = SKNode()
     private var spawnedBelowCount: Int = 0
     private var nextSpawnThreshold: CGFloat = 0
     private var baseRiseSpeed: Double = 7.5
     private var lastUpdateTime: TimeInterval = 0
+    
+    // MARK: - Horizontal X-Axis Scrolling Grass
+    private var grassContainer = SKNode()
+    private var grassStrip1 = SKNode()
+    private var grassStrip2 = SKNode()
+    private var grassStripWidth: CGFloat = 0
+    private let grassScrollSpeed: CGFloat = 24.0 // Continuous X-axis scroll speed
     
     // MARK: - Selection & Clear State
     private var selectedBlock: BearBlockNode? = nil
@@ -517,12 +522,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var levelProgress: CGFloat = 0.0
     private var comboCount: Int = 0
     
-    // MARK: - Electric Laser Danger Line
+    // MARK: - Electric Laser Danger Line (Thick & Ultra Bright)
     private var laserGlowNode = SKShapeNode()
     private var laserCoreNode = SKShapeNode()
     private var lastLaserJitterTime: TimeInterval = 0
-    private var dangerStartTime: TimeInterval? = nil
-    private let dangerGracePeriod: TimeInterval = 2.5
     
     // MARK: - Pre-Warmed Texture Cache
     private static var cachedBearTextures: [BearType: SKTexture] = [:]
@@ -533,7 +536,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var scoreLabel = SKLabelNode()
     private var levelLabel = SKLabelNode()
     private var levelProgressBar = SKShapeNode()
-    private var dangerWarningLabel = SKLabelNode()
     private var gameOverOverlay = SKNode()
     
     // MARK: - Touch Tracking
@@ -551,7 +553,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         generateTextures()
         setupParallaxBackground()
         setupGameLayerAndBoundaries()
-        setupSeamlessBottomGrass()
+        setupHorizontalScrollingGrass()
         setupHUD()
         setupElectricLaserLine()
         
@@ -564,7 +566,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     // MARK: - Geometry Setup
     
     private func setupPlayableArea() {
-        // High top clearance (at least 118pt down) so the HUD sits in open blue sky well under the Dynamic Island
         let safeTop = max(safeAreaTopInset, 60.0)
         topHUD_Y = size.height - safeTop - 45.0
         dangerLineY = topHUD_Y - 65.0
@@ -645,7 +646,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             parallaxBgLayer.addChild(r)
         }
         
-        // Smiling Rolling Green Hills (Clipped cleanly at bottom)
+        // Smiling Rolling Green Hills
         let hillPath = CGMutablePath()
         hillPath.move(to: CGPoint(x: -50, y: floorY))
         hillPath.addLine(to: CGPoint(x: -50, y: size.height * 0.52))
@@ -768,39 +769,56 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         gameLayer.addChild(rightWall)
     }
     
-    // MARK: - Seamless Bottom Grass Mask (Zero Gap & Animated Sway)
+    // MARK: - Horizontal X-Axis Infinite Scrolling Grass
     
-    private func setupSeamlessBottomGrass() {
-        animatedGrassNode.position = CGPoint(x: 0, y: floorY)
-        animatedGrassNode.zPosition = 150 // Always covers everything below floorY
+    private func setupHorizontalScrollingGrass() {
+        grassContainer.position = CGPoint(x: 0, y: floorY)
+        grassContainer.zPosition = 150 // High zPosition masks all emerging blocks
         
-        let bushCount = 12
-        let bushRadius = size.width / CGFloat(bushCount - 2) * 0.65
+        let bushCount = 10
+        let bushRadius: CGFloat = 28.0
+        grassStripWidth = CGFloat(bushCount) * (bushRadius * 1.6)
         
-        // Scalloped bush peaks resting right at floorY level so lowest blocks touch scallops with NO GAP!
-        for i in 0..<bushCount {
-            let cx = CGFloat(i - 1) * (size.width / CGFloat(bushCount - 2))
-            let b = SKShapeNode(circleOfRadius: bushRadius)
-            b.position = CGPoint(x: cx, y: 0)
-            b.fillColor = SKColor(red: 0.28, green: 0.48, blue: 0.18, alpha: 1.0)
-            b.strokeColor = .clear
-            animatedGrassNode.addChild(b)
+        func makeBushStrip() -> SKNode {
+            let strip = SKNode()
+            for i in 0..<bushCount {
+                let b = SKShapeNode(circleOfRadius: bushRadius)
+                b.position = CGPoint(x: CGFloat(i) * (bushRadius * 1.6), y: 0)
+                b.fillColor = SKColor(red: 0.28, green: 0.48, blue: 0.18, alpha: 1.0)
+                b.strokeColor = .clear
+                strip.addChild(b)
+            }
+            return strip
         }
         
-        // Solid green skirt extending off-screen to mask all emerging blocks
-        let grassSkirt = SKShapeNode(rect: CGRect(x: -50, y: -400, width: size.width + 100, height: 400))
+        grassStrip1 = makeBushStrip()
+        grassStrip1.position = CGPoint(x: 0, y: 0)
+        grassContainer.addChild(grassStrip1)
+        
+        grassStrip2 = makeBushStrip()
+        grassStrip2.position = CGPoint(x: grassStripWidth, y: 0)
+        grassContainer.addChild(grassStrip2)
+        
+        // Solid green skirt covering everything beneath floorY all the way off-screen
+        let grassSkirt = SKShapeNode(rect: CGRect(x: -100, y: -400, width: size.width + 200, height: 400))
         grassSkirt.fillColor = SKColor(red: 0.28, green: 0.48, blue: 0.18, alpha: 1.0)
         grassSkirt.strokeColor = .clear
-        animatedGrassNode.addChild(grassSkirt)
+        grassContainer.addChild(grassSkirt)
         
-        // Sway animation
-        let swayLeft = SKAction.moveBy(x: -4, y: 0, duration: 2.0)
-        swayLeft.timingMode = .easeInEaseOut
-        let swayRight = SKAction.moveBy(x: 4, y: 0, duration: 2.0)
-        swayRight.timingMode = .easeInEaseOut
-        animatedGrassNode.run(SKAction.repeatForever(SKAction.sequence([swayLeft, swayRight])))
+        addChild(grassContainer)
+    }
+    
+    private func updateHorizontalGrassScroll(dt: TimeInterval) {
+        let dx = grassScrollSpeed * CGFloat(dt)
+        grassStrip1.position.x -= dx
+        grassStrip2.position.x -= dx
         
-        addChild(animatedGrassNode)
+        if grassStrip1.position.x <= -grassStripWidth {
+            grassStrip1.position.x = grassStrip2.position.x + grassStripWidth
+        }
+        if grassStrip2.position.x <= -grassStripWidth {
+            grassStrip2.position.x = grassStrip1.position.x + grassStripWidth
+        }
     }
     
     // MARK: - Safe-Area Aware HUD & Bubble Font Styling
@@ -908,29 +926,21 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         #endif
     }
     
-    // MARK: - Electric Laser Danger Line
+    // MARK: - Electric Laser Danger Line (Thick, Ultra-Bright, Instant Kill)
     
     private func setupElectricLaserLine() {
-        laserGlowNode.strokeColor = SKColor(red: 0.0, green: 0.90, blue: 1.0, alpha: 0.95)
-        laserGlowNode.lineWidth = 5.5
-        laserGlowNode.glowWidth = 6.0
+        laserGlowNode.strokeColor = SKColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 1.0)
+        laserGlowNode.lineWidth = 10.0
+        laserGlowNode.glowWidth = 10.0
         laserGlowNode.zPosition = 60
         addChild(laserGlowNode)
         
         laserCoreNode.strokeColor = SKColor.white
-        laserCoreNode.lineWidth = 2.5
+        laserCoreNode.lineWidth = 4.5
         laserCoreNode.zPosition = 61
         addChild(laserCoreNode)
         
         updateElectricLaserPath(jitter: false)
-        
-        dangerWarningLabel.text = "⚠️ DANGER! ⚠️"
-        dangerWarningLabel.fontSize = 16
-        dangerWarningLabel.fontColor = SKColor(red: 1.0, green: 0.3, blue: 0.3, alpha: 1.0)
-        dangerWarningLabel.position = CGPoint(x: size.width / 2, y: dangerLineY - 26)
-        dangerWarningLabel.alpha = 0.0
-        dangerWarningLabel.zPosition = 62
-        addChild(dangerWarningLabel)
     }
     
     private func updateElectricLaserPath(jitter: Bool) {
@@ -941,8 +951,8 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         for i in 1...segments {
             let x = playableRect.minX + CGFloat(i) * segW
-            let amp: CGFloat = (i % 2 == 0) ? 6.0 : -6.0
-            let jitterDelta = jitter ? CGFloat.random(in: -2.5...2.5) : 0.0
+            let amp: CGFloat = (i % 2 == 0) ? 6.5 : -6.5
+            let jitterDelta = jitter ? CGFloat.random(in: -3.0...3.0) : 0.0
             let y = dangerLineY + amp + jitterDelta
             path.addLine(to: CGPoint(x: x, y: y))
         }
@@ -975,8 +985,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         selectedBlock = nil
         gameState = .playing
         lastUpdateTime = 0
-        dangerStartTime = nil
-        dangerWarningLabel.alpha = 0.0
         
         updateLevelProgressBar()
         
@@ -1158,7 +1166,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         return nil
     }
     
-    // MARK: - 2-Block Matching Flow & Immediate Bubble Pop Audio
+    // MARK: - 2-Block Matching Flow & Simultaneous Pop + Bell Chimes
     
     private func handleBlockSelection(_ block: BearBlockNode) {
         guard gameState == .playing, !block.isClearing else { return }
@@ -1224,7 +1232,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         clearStateEndTime = now + clearDuration
         
-        // Immediate Bubble Pop AND Ascending Xylophone Combo Chime!
+        // Play BOTH Pop AND Shimmering Glockenspiel / Bell Chime on Match!
         SoundManager.shared.playPop()
         SoundManager.shared.playCombo(index: comboCount)
         
@@ -1303,7 +1311,7 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         levelProgressBar.path = path
     }
     
-    // MARK: - Game Loop & Continuous Rise
+    // MARK: - Game Loop
     
     override func update(_ currentTime: TimeInterval) {
         guard gameState == .playing else { return }
@@ -1311,43 +1319,36 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         let dt = (lastUpdateTime > 0) ? min(currentTime - lastUpdateTime, 0.1) : (1.0 / 60.0)
         lastUpdateTime = currentTime
         
-        // 1. Smooth Continuous Upward Scroll
-        let currentSpeed = baseRiseSpeed + Double(level - 1) * 2.0
-        let autoRise = CGFloat(currentSpeed * dt)
-        applyRiseOffset(autoRise, isManualDrag: false)
+        // 1. Horizontal Continuous X-Axis Grass Scroll
+        updateHorizontalGrassScroll(dt: dt)
         
-        // 2. Animate Crackling Electric Laser Line
+        // 2. Continuous Upward Rise (PAUSED during active Clear State!)
+        let isClearing = !clearingBlocks.isEmpty
+        if !isClearing {
+            let currentSpeed = baseRiseSpeed + Double(level - 1) * 2.0
+            let autoRise = CGFloat(currentSpeed * dt)
+            applyRiseOffset(autoRise, isManualDrag: false)
+        }
+        
+        // 3. Animate Crackling Laser Danger Line
         if currentTime - lastLaserJitterTime > 0.06 {
             lastLaserJitterTime = currentTime
             updateElectricLaserPath(jitter: true)
         }
         
-        // 3. Clear State Expiration -> Pop Bubbles!
-        if !clearingBlocks.isEmpty && CACurrentMediaTime() >= clearStateEndTime {
+        // 4. Clear State Expiration -> Pop particles!
+        if isClearing && CACurrentMediaTime() >= clearStateEndTime {
             finalizeClearingBlocks()
         }
         
-        // 4. Danger Line Overflow Check
+        // 5. Instant Kill on Laser Line Contact
         let activeBlocks = gameLayer.children.compactMap { $0 as? BearBlockNode }
-        var isOverflowing = false
         for b in activeBlocks {
             let worldY = gameLayer.convert(b.position, to: self).y
             if !b.isClearing && (worldY + blockSize.height * 0.45) >= dangerLineY {
-                isOverflowing = true
-                break
-            }
-        }
-        
-        if isOverflowing {
-            if dangerStartTime == nil {
-                dangerStartTime = currentTime
-                dangerWarningLabel.alpha = 1.0
-            } else if let start = dangerStartTime, currentTime - start >= dangerGracePeriod {
                 triggerGameOver()
+                return
             }
-        } else {
-            dangerStartTime = nil
-            dangerWarningLabel.alpha = 0.0
         }
     }
     
@@ -1392,7 +1393,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private func triggerGameOver() {
         guard gameState == .playing else { return }
         gameState = .gameOver
-        dangerWarningLabel.alpha = 0.0
         selectedBlock = nil
         triggerHaptic(style: .heavy)
         SoundManager.shared.playError()
