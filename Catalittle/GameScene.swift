@@ -3,8 +3,10 @@
 //  Catalittle
 //
 //  A complete, faithful clone of "Bearalot" / "Bear Links" built in Swift & SpriteKit.
-//  - Post-fall cascade chain combo mechanic: falling matching blocks continue combos & clear clusters.
-//  - Deterministic column-stack grid engine: blocks NEVER drift or scroll out of grid.
+//  - Seamless block selection: clicking unconnectable blocks transfers selection smoothly.
+//  - Clean, precise post-fall cascade matching directly contiguous to fallen landing points.
+//  - Rich tactile haptics across all interactions (selection, links, combos, cascades, level-ups).
+//  - Deterministic column-stack grid engine (zero drift, zero out-of-grid scrolling).
 //  - Relative-drop falling: spawning new rows NEVER causes existing blocks to drop or twitch.
 //  - Pre-buffered deep floor spawning with zero visible pop-in.
 //  - Perfectly aligned connecting lines pathing directly through sprite centers.
@@ -915,6 +917,9 @@ class GameScene: SKScene {
         while gameLayer.position.y >= nextSpawnThreshold {
             spawnRowDeepBelow()
             nextSpawnThreshold += rowStep
+            if isManualDrag {
+                triggerHaptic(style: .light)
+            }
         }
     }
     
@@ -952,7 +957,6 @@ class GameScene: SKScene {
         if col == startCol && row == startRow { return true }
         if col == targetCol && row == targetRow { return true }
         
-        // Perimeter (left, right, bottom, or above column stack) is 100% open
         if col < 0 || col >= columnsCount || row < 0 {
             return true
         }
@@ -1073,7 +1077,7 @@ class GameScene: SKScene {
         return nil
     }
     
-    // MARK: - 2-Block Matching Flow & Authentic Combo Badges
+    // MARK: - 2-Block Matching Flow (Seamless Selection Transfer)
     
     private func handleBlockSelection(_ block: BearBlockNode) {
         guard gameState == .playing, !block.isClearing else { return }
@@ -1082,7 +1086,7 @@ class GameScene: SKScene {
             selectedBlock = block
             block.isSelected = true
             SoundManager.shared.playSelect()
-            triggerHaptic(style: .light)
+            triggerHaptic(style: .selection)
             return
         }
         
@@ -1090,31 +1094,32 @@ class GameScene: SKScene {
             first.isSelected = false
             selectedBlock = nil
             SoundManager.shared.playSelect()
+            triggerHaptic(style: .light)
             return
         }
         
+        // If different bear types: seamlessly transfer selection to newly clicked block!
         if first.bearType != block.bearType {
             first.isSelected = false
             selectedBlock = block
             block.isSelected = true
             SoundManager.shared.playSelect()
-            triggerHaptic(style: .light)
+            triggerHaptic(style: .selection)
             return
         }
         
+        // Same bear type: attempt to find a valid Lianliankan path
         if let pathPoints = findLinkPath(from: first, to: block) {
             first.isSelected = false
             selectedBlock = nil
             executeMatchLink(first: first, second: block, path: pathPoints)
         } else {
-            let shake = SKAction.sequence([
-                SKAction.moveBy(x: -4, y: 0, duration: 0.04),
-                SKAction.moveBy(x: 8, y: 0, duration: 0.08),
-                SKAction.moveBy(x: -4, y: 0, duration: 0.04)
-            ])
-            block.run(shake)
-            SoundManager.shared.playError()
-            triggerHaptic(style: .rigid)
+            // Cannot link right now: smoothly transfer selection to the newly clicked block!
+            first.isSelected = false
+            selectedBlock = block
+            block.isSelected = true
+            SoundManager.shared.playSelect()
+            triggerHaptic(style: .selection)
         }
     }
     
@@ -1156,7 +1161,11 @@ class GameScene: SKScene {
         let midY = (path.first!.y + path.last!.y) / 2
         showAuthenticComboBadge(combo: comboCount, scoreGain: totalGain, at: CGPoint(x: midX, y: midY))
         
-        triggerHaptic(style: .medium)
+        if comboCount > 1 {
+            triggerHaptic(style: .heavy)
+        } else {
+            triggerHaptic(style: .medium)
+        }
     }
     
     private func drawConnectingLine(path points: [CGPoint]) {
@@ -1253,6 +1262,8 @@ class GameScene: SKScene {
         let move = SKAction.moveBy(x: 0, y: 30, duration: 0.7)
         let fade = SKAction.fadeOut(withDuration: 0.7)
         badge.run(SKAction.sequence([pop, SKAction.group([move, fade]), SKAction.removeFromParent()]))
+        
+        triggerHaptic(style: .success)
     }
     
     private func updateLevelProgressBar() {
@@ -1317,6 +1328,7 @@ class GameScene: SKScene {
         clearingBlocks.removeAll()
         
         SoundManager.shared.playPop()
+        triggerHaptic(style: .light)
         
         for block in blocksToPop {
             createPopParticles(at: block.position, color: block.bearType.primaryColor)
@@ -1363,7 +1375,7 @@ class GameScene: SKScene {
         }
     }
     
-    // MARK: - Post-Fall Cascade Combo Chain Reaction
+    // MARK: - Post-Fall Cascade Combo Chain Reaction (Strict Landing Clustered Match)
     
     private func checkPostFallCascades(fallenBlocks: Set<BearBlockNode>) {
         guard gameState == .playing else { return }
@@ -1371,7 +1383,6 @@ class GameScene: SKScene {
         var visited = Set<BearBlockNode>()
         var allCascadingBlocks = Set<BearBlockNode>()
         
-        // Build coordinate grid lookup
         var grid: [GridPoint: BearBlockNode] = [:]
         var blockCoords: [BearBlockNode: GridPoint] = [:]
         
@@ -1383,11 +1394,28 @@ class GameScene: SKScene {
             }
         }
         
-        // Flood fill to find all orthogonally adjacent matching clusters touching fallen blocks
+        // Only trigger cascade if a fallen block specifically touches a matching block at its landing spot!
         for fallen in fallenBlocks {
             guard !visited.contains(fallen), !fallen.isClearing, let startGP = blockCoords[fallen] else { continue }
             
             let targetType = fallen.bearType
+            
+            let immediateNeighbors = [
+                GridPoint(col: startGP.col, row: startGP.row - 1), // Block below
+                GridPoint(col: startGP.col, row: startGP.row + 1), // Block above
+                GridPoint(col: startGP.col - 1, row: startGP.row), // Left
+                GridPoint(col: startGP.col + 1, row: startGP.row)  // Right
+            ]
+            
+            let hasMatchingNeighbor = immediateNeighbors.contains { nGP in
+                if let nBlock = grid[nGP], !nBlock.isClearing, nBlock.bearType == targetType {
+                    return true
+                }
+                return false
+            }
+            
+            guard hasMatchingNeighbor else { continue }
+            
             var cluster: [BearBlockNode] = []
             var queue: [GridPoint] = [startGP]
             visited.insert(fallen)
@@ -1412,7 +1440,6 @@ class GameScene: SKScene {
                 }
             }
             
-            // If 2 or more matching blocks touch, they trigger a cascade match!
             if cluster.count >= 2 {
                 for b in cluster {
                     allCascadingBlocks.insert(b)
@@ -1438,7 +1465,6 @@ class GameScene: SKScene {
         
         clearStateEndTime = now + clearDuration
         
-        // Pop + Glockenspiel combo sound (or Crowned Prestige sound for 16x+)
         SoundManager.shared.playPop()
         SoundManager.shared.playCombo(index: comboCount)
         
@@ -1454,7 +1480,6 @@ class GameScene: SKScene {
         }
         updateLevelProgressBar()
         
-        // Show combo badge at cluster centroid
         var sumX: CGFloat = 0
         var sumY: CGFloat = 0
         for b in blocks {
@@ -1464,7 +1489,7 @@ class GameScene: SKScene {
         let centerPos = CGPoint(x: sumX / CGFloat(blocks.count), y: sumY / CGFloat(blocks.count))
         showAuthenticComboBadge(combo: comboCount, scoreGain: totalGain, at: centerPos)
         
-        triggerHaptic(style: .medium)
+        triggerHaptic(style: .success)
     }
     
     private func createPopParticles(at pos: CGPoint, color: SKColor) {
@@ -1494,7 +1519,7 @@ class GameScene: SKScene {
         guard gameState == .playing else { return }
         gameState = .gameOver
         selectedBlock = nil
-        triggerHaptic(style: .heavy)
+        triggerHaptic(style: .error)
         SoundManager.shared.playError()
         
         gameOverOverlay = SKNode()
@@ -1549,6 +1574,7 @@ class GameScene: SKScene {
         if gameState == .gameOver {
             let tapped = nodes(at: location)
             if tapped.contains(where: { $0.name == "restart_button" }) || location.y < size.height * 0.65 {
+                triggerHaptic(style: .medium)
                 startGame()
             }
             return
@@ -1619,21 +1645,60 @@ class GameScene: SKScene {
     }
     #endif
     
-    // MARK: - Haptic Helper
+    // MARK: - Rich Haptic Helper
     
-    enum HapticStyle { case light, medium, heavy, rigid }
+    enum HapticStyle {
+        case light
+        case medium
+        case heavy
+        case rigid
+        case soft
+        case selection
+        case success
+        case warning
+        case error
+    }
+    
     private func triggerHaptic(style: HapticStyle) {
         #if os(iOS)
-        let uiStyle: UIImpactFeedbackGenerator.FeedbackStyle
         switch style {
-        case .light: uiStyle = .light
-        case .medium: uiStyle = .medium
-        case .heavy: uiStyle = .heavy
-        case .rigid: uiStyle = .rigid
+        case .light:
+            let gen = UIImpactFeedbackGenerator(style: .light)
+            gen.prepare()
+            gen.impactOccurred()
+        case .medium:
+            let gen = UIImpactFeedbackGenerator(style: .medium)
+            gen.prepare()
+            gen.impactOccurred()
+        case .heavy:
+            let gen = UIImpactFeedbackGenerator(style: .heavy)
+            gen.prepare()
+            gen.impactOccurred()
+        case .rigid:
+            let gen = UIImpactFeedbackGenerator(style: .rigid)
+            gen.prepare()
+            gen.impactOccurred()
+        case .soft:
+            let gen = UIImpactFeedbackGenerator(style: .soft)
+            gen.prepare()
+            gen.impactOccurred()
+        case .selection:
+            let gen = UISelectionFeedbackGenerator()
+            gen.prepare()
+            gen.selectionChanged()
+        case .success:
+            let gen = UINotificationFeedbackGenerator()
+            gen.prepare()
+            gen.notificationOccurred(.success)
+        case .warning:
+            let gen = UINotificationFeedbackGenerator()
+            gen.prepare()
+            gen.notificationOccurred(.warning)
+        case .error:
+            let gen = UINotificationFeedbackGenerator()
+            gen.prepare()
+            gen.notificationOccurred(.error)
         }
-        let generator = UIImpactFeedbackGenerator(style: uiStyle)
-        generator.prepare()
-        generator.impactOccurred()
         #endif
     }
 }
