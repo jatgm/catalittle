@@ -3,12 +3,13 @@
 //  Catalittle
 //
 //  A complete, faithful clone of "Bearalot" / "Bear Links" built in Swift & SpriteKit.
-//  - Perfectly aligned connecting lines pathing directly through sprite centers with zero offsets.
-//  - Full-width seamless laser beam with no visible endpoints.
-//  - Pre-buffered deep floor spawning with zero visible pop-in and zero physics drop/jitter.
-//  - Gentle, relaxed rise speed (4.5 pt/s).
-//  - Cohesive Glockenspiel / Bell chimes with 16x+ Prestige sparkle crown.
+//  - Deterministic column-stack grid engine: blocks NEVER drift or scroll out of grid.
+//  - Relative drop falling: spawning new rows NEVER causes existing blocks to drop or twitch.
+//  - Pre-buffered deep floor spawning with zero visible pop-in.
+//  - Perfectly aligned connecting lines pathing directly through sprite centers.
+//  - Full-width seamless laser beam with instant-kill collision.
 //  - Horizontal X-axis scrolling panoramic background and infinite grass floor.
+//  - Cohesive Glockenspiel / Bell chimes with 16x+ Prestige sparkle crown.
 //
 
 import SpriteKit
@@ -325,23 +326,6 @@ enum BearType: Int, CaseIterable {
     }
 }
 
-// MARK: - Physics Category Bitmasks
-
-struct PhysicsCategory {
-    static let none: UInt32      = 0
-    static let block: UInt32     = 0x1 << 0
-    static let wall: UInt32      = 0x1 << 1
-    static let floor: UInt32     = 0x1 << 2
-}
-
-// MARK: - Grid Point Struct
-
-struct GridPoint: Hashable, CustomStringConvertible {
-    var col: Int
-    var row: Int
-    var description: String { "(\(col), \(row))" }
-}
-
 // MARK: - BearBlockNode Class
 
 class BearBlockNode: SKSpriteNode {
@@ -364,27 +348,11 @@ class BearBlockNode: SKSpriteNode {
         super.init(texture: normalTex, color: .clear, size: size)
         self.name = "bear_block"
         
-        setupPhysics(size: size)
         setupSelectionBorder(size: size)
     }
     
     required init?(coder aDecoder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-    
-    private func setupPhysics(size: CGSize) {
-        let physicsSize = CGSize(width: size.width - 2.0, height: size.height - 2.0)
-        let body = SKPhysicsBody(rectangleOf: physicsSize)
-        body.allowsRotation = false
-        body.restitution = 0.0
-        body.friction = 0.15
-        body.linearDamping = 0.7
-        body.mass = 0.12
-        
-        body.categoryBitMask = PhysicsCategory.block
-        body.collisionBitMask = PhysicsCategory.block | PhysicsCategory.wall | PhysicsCategory.floor
-        body.contactTestBitMask = PhysicsCategory.block
-        self.physicsBody = body
     }
     
     private func setupSelectionBorder(size: CGSize) {
@@ -408,7 +376,6 @@ class BearBlockNode: SKSpriteNode {
         isClearing = true
         isSelected = false
         self.texture = clearTexture
-        self.physicsBody?.isDynamic = false
         
         let grow = SKAction.scale(to: 1.06, duration: 0.25)
         let shrink = SKAction.scale(to: 0.96, duration: 0.25)
@@ -417,7 +384,6 @@ class BearBlockNode: SKSpriteNode {
     
     func popAndRemove(completion: @escaping () -> Void) {
         self.removeAction(forKey: "clear_pulse")
-        self.physicsBody = nil
         
         let pop = SKAction.scale(to: 1.25, duration: 0.05)
         let vanish = SKAction.group([
@@ -441,7 +407,7 @@ enum GameState {
 
 // MARK: - GameScene
 
-class GameScene: SKScene, SKPhysicsContactDelegate {
+class GameScene: SKScene {
     
     // MARK: - Safe Area Inset
     var safeAreaTopInset: CGFloat = 59.0
@@ -457,12 +423,13 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
     private var rowHeight: CGFloat = 0
     private var gridStartX: CGFloat = 0
     
+    // MARK: - Deterministic Column Matrix Engine
+    private var columns: [[BearBlockNode]] = Array(repeating: [], count: 6)
+    
     // MARK: - Layers & Scrolling
     private var gameLayer = SKNode()
-    private var floorNode = SKNode()
-    private var spawnedBelowCount: Int = 0
     private var nextSpawnThreshold: CGFloat = 0
-    private var baseRiseSpeed: Double = 4.5 // Calmer, enjoyable rise speed
+    private var baseRiseSpeed: Double = 4.5
     private var lastUpdateTime: TimeInterval = 0
     
     // MARK: - Panoramic Horizontal X-Axis Scrolling Background
@@ -526,13 +493,10 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         setupPlayableArea()
         generateTextures()
         setupHorizontalPanoramicBackground()
-        setupGameLayerAndBoundaries()
+        setupGameLayer()
         setupHorizontalScrollingGrass()
         setupHUD()
         setupElectricLaserLine()
-        
-        physicsWorld.gravity = CGVector(dx: 0.0, dy: -24.0)
-        physicsWorld.contactDelegate = self
         
         startGame()
     }
@@ -695,38 +659,11 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    // MARK: - Game Layer & Boundaries
+    // MARK: - Game Layer Setup
     
-    private func setupGameLayerAndBoundaries() {
+    private func setupGameLayer() {
         gameLayer.zPosition = 10
         addChild(gameLayer)
-        
-        floorNode.position = CGPoint(x: size.width / 2, y: floorY - (blockSize.height + 2.0) * 2.0)
-        let floorBody = SKPhysicsBody(edgeFrom: CGPoint(x: -size.width * 2, y: 0), to: CGPoint(x: size.width * 2, y: 0))
-        floorBody.categoryBitMask = PhysicsCategory.floor
-        floorBody.collisionBitMask = PhysicsCategory.block
-        floorBody.friction = 0.8
-        floorBody.restitution = 0.0
-        floorNode.physicsBody = floorBody
-        gameLayer.addChild(floorNode)
-        
-        let leftWall = SKNode()
-        leftWall.position = CGPoint(x: playableRect.minX - 2, y: 0)
-        let leftBody = SKPhysicsBody(edgeFrom: CGPoint(x: 0, y: -size.height * 10), to: CGPoint(x: 0, y: size.height * 10))
-        leftBody.categoryBitMask = PhysicsCategory.wall
-        leftBody.collisionBitMask = PhysicsCategory.block
-        leftBody.friction = 0.05
-        leftWall.physicsBody = leftBody
-        gameLayer.addChild(leftWall)
-        
-        let rightWall = SKNode()
-        rightWall.position = CGPoint(x: playableRect.maxX + 2, y: 0)
-        let rightBody = SKPhysicsBody(edgeFrom: CGPoint(x: 0, y: -size.height * 10), to: CGPoint(x: 0, y: size.height * 10))
-        rightBody.categoryBitMask = PhysicsCategory.wall
-        rightBody.collisionBitMask = PhysicsCategory.block
-        rightBody.friction = 0.05
-        rightWall.physicsBody = rightBody
-        gameLayer.addChild(rightWall)
     }
     
     // MARK: - Horizontal X-Axis Infinite Scrolling Grass
@@ -912,20 +849,20 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         laserCoreNode.path = path
     }
     
-    // MARK: - Game Lifecycle & Pre-Buffered Deep Spawning
+    // MARK: - Game Lifecycle & Start
     
     private func startGame() {
-        for child in gameLayer.children where child is BearBlockNode {
-            child.removeFromParent()
-        }
+        gameLayer.removeAllChildren()
         gameOverOverlay.removeFromParent()
         gameOverOverlay = SKNode()
         
+        for c in 0..<columnsCount {
+            columns[c].removeAll()
+        }
+        
         gameLayer.position = .zero
-        spawnedBelowCount = 2 // 2 buffer rows pre-spawned deep under floor
         let rowStep = blockSize.height + 2.0
         nextSpawnThreshold = rowStep
-        floorNode.position = CGPoint(x: size.width / 2, y: floorY - rowStep * 2.0)
         
         score = 0
         level = 1
@@ -938,23 +875,24 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         
         updateLevelProgressBar()
         
-        // Spawn visible rows (Row 0 to 3) + Deep Buffer Rows (-1 and -2)
-        for row in -2..<4 {
-            let rowY = floorY + blockSize.height / 2 + CGFloat(row) * rowStep
-            for col in 0..<columnsCount {
-                let x = gridStartX + CGFloat(col) * (colWidth + 3.0)
+        // Spawn 3 buffer rows below (-3, -2, -1) + 4 visible rows (0, 1, 2, 3)
+        for r in -3..<4 {
+            let y = floorY + blockSize.height / 2 + CGFloat(r) * rowStep
+            for c in 0..<columnsCount {
+                let x = gridStartX + CGFloat(c) * (colWidth + 3.0)
                 guard let randomType = BearType.allCases.randomElement(),
                       let tex = GameScene.cachedBearTextures[randomType],
                       let clearTex = GameScene.cachedClearTexture else { continue }
                 
                 let block = BearBlockNode(type: randomType, size: blockSize, normalTex: tex, clearTex: clearTex)
-                block.position = CGPoint(x: x, y: rowY)
+                block.position = CGPoint(x: x, y: y)
                 gameLayer.addChild(block)
+                columns[c].append(block)
             }
         }
     }
     
-    // MARK: - Smooth Continuous Rise & Pre-Buffered Deep Spawning
+    // MARK: - Smooth Continuous Rise & Pre-Buffered Deep Spawning (Zero Drop/Twitch)
     
     private func applyRiseOffset(_ dy: CGFloat, isManualDrag: Bool = false) {
         guard gameState == .playing, dy > 0 else { return }
@@ -971,141 +909,120 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         }
     }
     
-    /// Spawns new rows 2 rows deep below the floor so they never pop in or cause physics jitter
+    /// Spawns a new row deep below without modifying any existing blocks' positions!
     private func spawnRowDeepBelow() {
-        spawnedBelowCount += 1
         let rowStep = blockSize.height + 2.0
-        let rowY = floorY + blockSize.height / 2 - CGFloat(spawnedBelowCount) * rowStep
         
-        floorNode.position.y = floorY - CGFloat(spawnedBelowCount) * rowStep
-        
-        for col in 0..<columnsCount {
-            let x = gridStartX + CGFloat(col) * (colWidth + 3.0)
+        for c in 0..<columnsCount {
+            guard let lowest = columns[c].first else { continue }
+            let newY = lowest.position.y - rowStep
+            let x = lowest.position.x
+            
             guard let randomType = BearType.allCases.randomElement(),
                   let tex = GameScene.cachedBearTextures[randomType],
                   let clearTex = GameScene.cachedClearTexture else { continue }
             
             let block = BearBlockNode(type: randomType, size: blockSize, normalTex: tex, clearTex: clearTex)
-            block.position = CGPoint(x: x, y: rowY)
+            block.position = CGPoint(x: x, y: newY)
             gameLayer.addChild(block)
+            columns[c].insert(block, at: 0)
         }
     }
     
-    // MARK: - Deterministic Column/Stack Pathfinding (Perfect Centered Connecting Lines)
+    // MARK: - Deterministic Column-Stack Pathfinding (100% Mathematically Solid)
     
-    private func buildGridMatrix() -> (matrix: [[BearBlockNode?]], blockToCoord: [BearBlockNode: GridPoint], maxRow: Int) {
-        var columns: [[BearBlockNode]] = Array(repeating: [], count: columnsCount)
-        let activeBlocks = gameLayer.children.compactMap { $0 as? BearBlockNode }
-        
-        for b in activeBlocks {
-            let col = Int(round((b.position.x - gridStartX) / (colWidth + 3.0)))
-            let clampedCol = max(0, min(columnsCount - 1, col))
-            columns[clampedCol].append(b)
-        }
-        
-        var matrix: [[BearBlockNode?]] = []
-        var blockToCoord: [BearBlockNode: GridPoint] = [:]
-        var maxRow = 4
-        
+    private func findBlockCoordinates(_ block: BearBlockNode) -> (col: Int, row: Int)? {
         for c in 0..<columnsCount {
-            columns[c].sort { $0.position.y < $1.position.y }
-            maxRow = max(maxRow, columns[c].count)
-        }
-        
-        for _ in 0...columnsCount {
-            matrix.append(Array(repeating: nil, count: maxRow + 4))
-        }
-        
-        for c in 0..<columnsCount {
-            for (r, b) in columns[c].enumerated() {
-                matrix[c][r] = b
-                blockToCoord[b] = GridPoint(col: c, row: r)
+            if let r = columns[c].firstIndex(of: block) {
+                return (c, r)
             }
         }
-        
-        return (matrix, blockToCoord, maxRow)
+        return nil
     }
     
-    private func isCellFree(matrix: [[BearBlockNode?]], pt: GridPoint, start: GridPoint, target: GridPoint, maxRow: Int) -> Bool {
-        if pt == start || pt == target { return true }
-        if pt.col < 0 || pt.col >= columnsCount || pt.row < 0 || pt.row > maxRow {
+    private func isCellFree(col: Int, row: Int, startCol: Int, startRow: Int, targetCol: Int, targetRow: Int) -> Bool {
+        if col == startCol && row == startRow { return true }
+        if col == targetCol && row == targetRow { return true }
+        
+        // Perimeter (left, right, bottom, or above column stack) is 100% open
+        if col < 0 || col >= columnsCount || row < 0 {
             return true
         }
-        if let block = matrix[pt.col][pt.row] {
-            return block.isClearing
+        if row >= columns[col].count {
+            return true
         }
-        return true
+        
+        let block = columns[col][row]
+        return block.isClearing
     }
     
-    private func isStraightLineClear(matrix: [[BearBlockNode?]], from: GridPoint, to: GridPoint, start: GridPoint, target: GridPoint, maxRow: Int) -> Bool {
-        if from.col == to.col {
-            let minR = min(from.row, to.row)
-            let maxR = max(from.row, to.row)
+    private func isStraightLineClear(fromCol: Int, fromRow: Int, toCol: Int, toRow: Int, startCol: Int, startRow: Int, targetCol: Int, targetRow: Int) -> Bool {
+        if fromCol == toCol {
+            let minR = min(fromRow, toRow)
+            let maxR = max(fromRow, toRow)
             if minR + 1 < maxR {
                 for r in (minR + 1)..<maxR {
-                    let pt = GridPoint(col: from.col, row: r)
-                    if !isCellFree(matrix: matrix, pt: pt, start: start, target: target, maxRow: maxRow) {
+                    if !isCellFree(col: fromCol, row: r, startCol: startCol, startRow: startRow, targetCol: targetCol, targetRow: targetRow) {
                         return false
                     }
                 }
             }
-            return isCellFree(matrix: matrix, pt: to, start: start, target: target, maxRow: maxRow)
-        } else if from.row == to.row {
-            let minC = min(from.col, to.col)
-            let maxC = max(from.col, to.col)
+            return isCellFree(col: toCol, row: toRow, startCol: startCol, startRow: startRow, targetCol: targetCol, targetRow: targetRow)
+        } else if fromRow == toRow {
+            let minC = min(fromCol, toCol)
+            let maxC = max(fromCol, toCol)
             if minC + 1 < maxC {
                 for c in (minC + 1)..<maxC {
-                    let pt = GridPoint(col: c, row: from.row)
-                    if !isCellFree(matrix: matrix, pt: pt, start: start, target: target, maxRow: maxRow) {
+                    if !isCellFree(col: c, row: fromRow, startCol: startCol, startRow: startRow, targetCol: targetCol, targetRow: targetRow) {
                         return false
                     }
                 }
             }
-            return isCellFree(matrix: matrix, pt: to, start: start, target: target, maxRow: maxRow)
+            return isCellFree(col: toCol, row: toRow, startCol: startCol, startRow: startRow, targetCol: targetCol, targetRow: targetRow)
         }
         return false
     }
     
-    /// Finds path with precise sprite-centered geometry (zero visual offsets!)
     private func findLinkPath(from startBlock: BearBlockNode, to targetBlock: BearBlockNode) -> [CGPoint]? {
-        let (matrix, blockToCoord, maxRow) = buildGridMatrix()
-        guard let start = blockToCoord[startBlock], let target = blockToCoord[targetBlock] else { return nil }
+        guard let (sC, sR) = findBlockCoordinates(startBlock),
+              let (tC, tR) = findBlockCoordinates(targetBlock) else { return nil }
         
         let pStart = startBlock.position
         let pTarget = targetBlock.position
         
+        var maxStackRow = 4
+        for c in 0..<columnsCount {
+            maxStackRow = max(maxStackRow, columns[c].count)
+        }
+        
         // 1. Direct Straight Line (0 Turns)
-        if (start.col == target.col || start.row == target.row) &&
-            isStraightLineClear(matrix: matrix, from: start, to: target, start: start, target: target, maxRow: maxRow) {
+        if (sC == tC || sR == tR) &&
+            isStraightLineClear(fromCol: sC, fromRow: sR, toCol: tC, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) {
             return [pStart, pTarget]
         }
         
         // 2. 1 Turn (2 Segments - L-Shape)
-        let corner1 = GridPoint(col: start.col, row: target.row)
-        if isCellFree(matrix: matrix, pt: corner1, start: start, target: target, maxRow: maxRow) &&
-            isStraightLineClear(matrix: matrix, from: start, to: corner1, start: start, target: target, maxRow: maxRow) &&
-            isStraightLineClear(matrix: matrix, from: corner1, to: target, start: start, target: target, maxRow: maxRow) {
+        if isCellFree(col: sC, row: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+            isStraightLineClear(fromCol: sC, fromRow: sR, toCol: sC, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+            isStraightLineClear(fromCol: sC, fromRow: tR, toCol: tC, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) {
             let pCorner = CGPoint(x: pStart.x, y: pTarget.y)
             return [pStart, pCorner, pTarget]
         }
         
-        let corner2 = GridPoint(col: target.col, row: start.row)
-        if isCellFree(matrix: matrix, pt: corner2, start: start, target: target, maxRow: maxRow) &&
-            isStraightLineClear(matrix: matrix, from: start, to: corner2, start: start, target: target, maxRow: maxRow) &&
-            isStraightLineClear(matrix: matrix, from: corner2, to: target, start: start, target: target, maxRow: maxRow) {
+        if isCellFree(col: tC, row: sR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+            isStraightLineClear(fromCol: sC, fromRow: sR, toCol: tC, toRow: sR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+            isStraightLineClear(fromCol: tC, fromRow: sR, toCol: tC, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) {
             let pCorner = CGPoint(x: pTarget.x, y: pStart.y)
             return [pStart, pCorner, pTarget]
         }
         
-        // 3. 2 Turns (3 Segments - Z / U Shape along vertical channel)
+        // 3. 2 Turns (3 Segments - Z / U Shape along vertical channels)
         for col in -1...columnsCount {
-            let p1 = GridPoint(col: col, row: start.row)
-            let p2 = GridPoint(col: col, row: target.row)
-            if isCellFree(matrix: matrix, pt: p1, start: start, target: target, maxRow: maxRow) &&
-                isCellFree(matrix: matrix, pt: p2, start: start, target: target, maxRow: maxRow) &&
-                isStraightLineClear(matrix: matrix, from: start, to: p1, start: start, target: target, maxRow: maxRow) &&
-                isStraightLineClear(matrix: matrix, from: p1, to: p2, start: start, target: target, maxRow: maxRow) &&
-                isStraightLineClear(matrix: matrix, from: p2, to: target, start: start, target: target, maxRow: maxRow) {
+            if isCellFree(col: col, row: sR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isCellFree(col: col, row: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isStraightLineClear(fromCol: sC, fromRow: sR, toCol: col, toRow: sR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isStraightLineClear(fromCol: col, fromRow: sR, toCol: col, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isStraightLineClear(fromCol: col, fromRow: tR, toCol: tC, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) {
                 
                 let channelX: CGFloat
                 if col == -1 {
@@ -1122,22 +1039,21 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             }
         }
         
-        // 4. 2 Turns (3 Segments - Z / U Shape along horizontal channel / above stack)
-        let topOverY = max(pStart.y, pTarget.y) + (blockSize.height + 2.0)
-        for row in -1...(maxRow + 2) {
-            let p1 = GridPoint(col: start.col, row: row)
-            let p2 = GridPoint(col: target.col, row: row)
-            if isCellFree(matrix: matrix, pt: p1, start: start, target: target, maxRow: maxRow) &&
-                isCellFree(matrix: matrix, pt: p2, start: start, target: target, maxRow: maxRow) &&
-                isStraightLineClear(matrix: matrix, from: start, to: p1, start: start, target: target, maxRow: maxRow) &&
-                isStraightLineClear(matrix: matrix, from: p1, to: p2, start: start, target: target, maxRow: maxRow) &&
-                isStraightLineClear(matrix: matrix, from: p2, to: target, start: start, target: target, maxRow: maxRow) {
+        // 4. 2 Turns (3 Segments - Z / U Shape along horizontal channels / over the top)
+        let rowStep = blockSize.height + 2.0
+        let topOverY = max(pStart.y, pTarget.y) + rowStep
+        for row in -1...(maxStackRow + 2) {
+            if isCellFree(col: sC, row: row, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isCellFree(col: tC, row: row, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isStraightLineClear(fromCol: sC, fromRow: sR, toCol: sC, toRow: row, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isStraightLineClear(fromCol: sC, fromRow: row, toCol: tC, toRow: row, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) &&
+                isStraightLineClear(fromCol: tC, fromRow: row, toCol: tC, toRow: tR, startCol: sC, startRow: sR, targetCol: tC, targetRow: tR) {
                 
                 let channelY: CGFloat
-                if row > maxRow {
+                if row > maxStackRow {
                     channelY = topOverY
                 } else {
-                    channelY = floorNode.position.y + blockSize.height / 2 + CGFloat(row) * (blockSize.height + 2.0)
+                    channelY = startBlock.position.y + CGFloat(row - sR) * rowStep
                 }
                 
                 let pt1 = CGPoint(x: pStart.x, y: channelY)
@@ -1369,18 +1285,21 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
             updateElectricLaserPath(jitter: true)
         }
         
-        // 4. Clear State Expiration -> Pop particles!
+        // 4. Clear State Expiration -> Pop particles & smooth downward fall!
         if isClearing && CACurrentMediaTime() >= clearStateEndTime {
             finalizeClearingBlocks()
         }
         
         // 5. Instant Kill on Laser Line Contact
-        let activeBlocks = gameLayer.children.compactMap { $0 as? BearBlockNode }
-        for b in activeBlocks {
-            let worldY = gameLayer.convert(b.position, to: self).y
-            if !b.isClearing && (worldY + blockSize.height * 0.45) >= dangerLineY {
-                triggerGameOver()
-                return
+        for c in 0..<columnsCount {
+            for b in columns[c] {
+                if !b.isClearing {
+                    let worldY = gameLayer.convert(b.position, to: self).y
+                    if (worldY + blockSize.height * 0.45) >= dangerLineY {
+                        triggerGameOver()
+                        return
+                    }
+                }
             }
         }
     }
@@ -1393,10 +1312,35 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         SoundManager.shared.playPop()
         
         for block in blocksToPop {
-            if block.parent != nil {
-                createPopParticles(at: block.position, color: block.bearType.primaryColor)
-                block.popAndRemove { }
+            createPopParticles(at: block.position, color: block.bearType.primaryColor)
+            block.popAndRemove { }
+        }
+        
+        let rowStep = blockSize.height + 2.0
+        
+        // Smoothly drop only the blocks situated above the popped gaps!
+        for c in 0..<columnsCount {
+            var clearedBelowCount = 0
+            var newColumn: [BearBlockNode] = []
+            
+            for block in columns[c] {
+                if blocksToPop.contains(block) {
+                    clearedBelowCount += 1
+                } else {
+                    newColumn.append(block)
+                    if clearedBelowCount > 0 {
+                        let targetY = block.position.y - CGFloat(clearedBelowCount) * rowStep
+                        let fall = SKAction.moveTo(y: targetY, duration: 0.16)
+                        fall.timingMode = .easeIn
+                        let bounce = SKAction.sequence([
+                            SKAction.moveBy(x: 0, y: -2.5, duration: 0.04),
+                            SKAction.moveBy(x: 0, y: 2.5, duration: 0.04)
+                        ])
+                        block.run(SKAction.sequence([fall, bounce]))
+                    }
+                }
             }
+            columns[c] = newColumn
         }
     }
     
@@ -1429,10 +1373,6 @@ class GameScene: SKScene, SKPhysicsContactDelegate {
         selectedBlock = nil
         triggerHaptic(style: .heavy)
         SoundManager.shared.playError()
-        
-        for b in gameLayer.children.compactMap({ $0 as? BearBlockNode }) {
-            b.physicsBody?.isDynamic = false
-        }
         
         gameOverOverlay = SKNode()
         gameOverOverlay.zPosition = 200
