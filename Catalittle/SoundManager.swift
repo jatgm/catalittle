@@ -20,11 +20,13 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
     private var errorPlayer: AVAudioPlayer?
     private var comboPlayers: [AVAudioPlayer] = []
     private var prestigePlayer: AVAudioPlayer?
+    private var bgmPlayer: AVAudioPlayer?
     
     private override init() {
         super.init()
         setupAudioSession()
         prepareSoundEffects()
+        setupBackgroundMusic()
     }
     
     private func setupAudioSession() {
@@ -109,6 +111,44 @@ class SoundManager: NSObject, AVAudioPlayerDelegate {
             player.prepareToPlay()
             prestigePlayer = player
         }
+    }
+    
+    // MARK: - Background Music (Kevin MacLeod - Cipher)
+    
+    private func setupBackgroundMusic() {
+        if let url = Bundle.main.url(forResource: "Cipher", withExtension: "mp3") {
+            do {
+                let player = try AVAudioPlayer(contentsOf: url)
+                player.numberOfLoops = -1 // Infinite loop
+                player.volume = 0.45
+                player.prepareToPlay()
+                bgmPlayer = player
+            } catch {
+                print("Failed to initialize Cipher background music: \(error)")
+            }
+        }
+    }
+    
+    func startBackgroundMusic() {
+        if bgmPlayer == nil {
+            setupBackgroundMusic()
+        }
+        if bgmPlayer?.isPlaying == false {
+            bgmPlayer?.play()
+        }
+    }
+    
+    func pauseBackgroundMusic() {
+        bgmPlayer?.pause()
+    }
+    
+    func stopBackgroundMusic() {
+        bgmPlayer?.stop()
+        bgmPlayer?.currentTime = 0
+    }
+    
+    func setBGMVolume(_ volume: Float) {
+        bgmPlayer?.volume = volume
     }
     
     // MARK: - Playback Methods

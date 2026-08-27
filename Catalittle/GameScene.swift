@@ -499,7 +499,7 @@ class GameScene: SKScene {
     // MARK: - Scene Lifecycle
     
     override func didMove(to view: SKView) {
-        _ = SoundManager.shared
+        SoundManager.shared.startBackgroundMusic()
         
         setupPlayableArea()
         generateTextures()
@@ -863,6 +863,9 @@ class GameScene: SKScene {
     // MARK: - Game Lifecycle & Start
     
     private func startGame() {
+        SoundManager.shared.startBackgroundMusic()
+        SoundManager.shared.setBGMVolume(0.45)
+        
         gameLayer.removeAllChildren()
         gameOverOverlay.removeFromParent()
         gameOverOverlay = SKNode()
@@ -1521,6 +1524,7 @@ class GameScene: SKScene {
         selectedBlock = nil
         triggerHaptic(style: .error)
         SoundManager.shared.playError()
+        SoundManager.shared.setBGMVolume(0.18)
         
         gameOverOverlay = SKNode()
         gameOverOverlay.zPosition = 200
