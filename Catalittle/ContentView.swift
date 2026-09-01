@@ -19,12 +19,14 @@ struct ContentView: View {
                 Color(red: 0.35, green: 0.68, blue: 0.94)
                     .ignoresSafeArea()
                 
-                // High-Performance Metal SpriteKit View with 120 FPS ProMotion Support
-                CustomSpriteView(
+                // Main SpriteKit Game View with 120 FPS ProMotion Support
+                SpriteView(
                     scene: makeGameScene(
                         size: geometry.size,
                         topInset: geometry.safeAreaInsets.top
-                    )
+                    ),
+                    preferredFramesPerSecond: 120,
+                    options: [.allowsTransparency]
                 )
                 .ignoresSafeArea()
                 .opacity(isLoading ? 0.0 : 1.0)
@@ -97,42 +99,6 @@ struct ContentView: View {
         return scene
     }
 }
-
-// MARK: - High-Performance 120 FPS ProMotion SpriteView
-
-#if os(iOS)
-struct CustomSpriteView: UIViewRepresentable {
-    let scene: SKScene
-    
-    func makeUIView(context: Context) -> SKView {
-        let skView = SKView()
-        skView.ignoresSiblingOrder = true
-        skView.shouldCullNonVisibleNodes = true
-        skView.preferredFramesPerSecond = 120
-        skView.allowsTransparency = true
-        skView.presentScene(scene)
-        return skView
-    }
-    
-    func updateUIView(_ uiView: SKView, context: Context) {}
-}
-#elseif os(macOS)
-struct CustomSpriteView: NSViewRepresentable {
-    let scene: SKScene
-    
-    func makeNSView(context: Context) -> SKView {
-        let skView = SKView()
-        skView.ignoresSiblingOrder = true
-        skView.shouldCullNonVisibleNodes = true
-        skView.preferredFramesPerSecond = 120
-        skView.allowsTransparency = true
-        skView.presentScene(scene)
-        return skView
-    }
-    
-    func updateNSView(_ nsView: SKView, context: Context) {}
-}
-#endif
 
 #Preview {
     ContentView()
