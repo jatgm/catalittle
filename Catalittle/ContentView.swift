@@ -9,6 +9,7 @@ import SwiftUI
 import SpriteKit
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var isLoading: Bool = true
     
     var body: some View {
@@ -35,7 +36,7 @@ struct ContentView: View {
                     VStack(spacing: 16) {
                         Spacer()
                         
-                        // Kawaii Bear / Star Icon
+                        // Kawaii Bear / Cat Icon
                         ZStack {
                             Circle()
                                 .fill(Color(red: 1.0, green: 0.92, blue: 0.40))
@@ -55,7 +56,7 @@ struct ContentView: View {
                         .scaleEffect(isLoading ? 1.05 : 0.95)
                         .animation(.easeInOut(duration: 0.6).repeatForever(autoreverses: true), value: isLoading)
                         
-                        Text("BEARALOT")
+                        Text("CATALITTLE")
                             .font(.system(size: 32, weight: .black, design: .rounded))
                             .foregroundColor(.white)
                             .shadow(color: Color.black.opacity(0.25), radius: 4, y: 3)
@@ -68,6 +69,11 @@ struct ContentView: View {
                         Spacer()
                     }
                     .transition(.opacity)
+                }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .inactive || newPhase == .background {
+                    NotificationCenter.default.post(name: NSNotification.Name("Catalittle_AutoPauseGame"), object: nil)
                 }
             }
             .onAppear {
