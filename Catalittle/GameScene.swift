@@ -31,7 +31,7 @@ import AppKit
 // MARK: - App Version Constant
 
 struct AppVersion {
-    static let current = "v1.1.0"
+    static let current = "v1.1.1"
 }
 
 // MARK: - Bear / Character Types (Authentic Bearalot Pill Art - Strictly Bounded)
@@ -579,7 +579,7 @@ class GameScene: SKScene {
     private static var cachedClearTexture: SKTexture? = nil
     private static var cachedParticleTextures: [BearType: SKTexture] = [:]
     
-    // MARK: - UI Nodes
+    // MARK: - UI Nodes & FPS Tracking
     private var hudNode = SKNode()
     private var scoreLabel = SKLabelNode()
     private var levelLabel = SKLabelNode()
@@ -587,6 +587,10 @@ class GameScene: SKScene {
     private var gameOverOverlay = SKNode()
     private var pauseOverlay = SKNode()
     private var versionLabel = SKLabelNode()
+    
+    private var lastFPSUpdateTime: TimeInterval = 0
+    private var frameCountSinceLastFPS: Int = 0
+    private var currentFPS: Int = 120
     
     // MARK: - Touch Tracking
     private var touchStartLocation: CGPoint?
@@ -909,15 +913,20 @@ class GameScene: SKScene {
     }
     
     private func setupVersionWatermark() {
-        versionLabel.text = AppVersion.current
-        versionLabel.fontSize = 10
-        versionLabel.fontName = "AvenirNext-Medium"
+        updateVersionAndFPSLabel()
+        versionLabel.fontSize = 11
+        versionLabel.fontName = "AvenirNext-DemiBold"
         versionLabel.fontColor = SKColor.white.withAlphaComponent(0.65)
         versionLabel.horizontalAlignmentMode = .right
         versionLabel.verticalAlignmentMode = .bottom
-        versionLabel.position = CGPoint(x: size.width - 12, y: 10)
+        // Inset comfortably from bottom-right rounded iPhone corner
+        versionLabel.position = CGPoint(x: size.width - 24, y: 14)
         versionLabel.zPosition = 250
         addChild(versionLabel)
+    }
+    
+    private func updateVersionAndFPSLabel() {
+        versionLabel.text = "\(currentFPS) FPS • \(AppVersion.current)"
     }
     
     private func updateLevelLabel() {
@@ -1415,6 +1424,18 @@ class GameScene: SKScene {
     // MARK: - Game Loop
     
     override func update(_ currentTime: TimeInterval) {
+        // Track rolling FPS
+        frameCountSinceLastFPS += 1
+        if currentTime - lastFPSUpdateTime >= 0.35 {
+            if lastFPSUpdateTime > 0 {
+                let elapsed = currentTime - lastFPSUpdateTime
+                currentFPS = max(1, Int(round(Double(frameCountSinceLastFPS) / elapsed)))
+                updateVersionAndFPSLabel()
+            }
+            lastFPSUpdateTime = currentTime
+            frameCountSinceLastFPS = 0
+        }
+        
         guard gameState == .playing else { return }
         
         let dt = (lastUpdateTime > 0) ? min(currentTime - lastUpdateTime, 0.1) : (1.0 / 60.0)

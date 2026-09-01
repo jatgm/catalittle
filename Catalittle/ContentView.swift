@@ -19,13 +19,13 @@ struct ContentView: View {
                 Color(red: 0.35, green: 0.68, blue: 0.94)
                     .ignoresSafeArea()
                 
-                // Main SpriteKit Game View
+                // Main SpriteKit Game View with 120 FPS ProMotion Support
                 SpriteView(
                     scene: makeGameScene(
                         size: geometry.size,
                         topInset: geometry.safeAreaInsets.top
                     ),
-                    preferredFramesPerSecond: 60,
+                    preferredFramesPerSecond: 120,
                     options: [.allowsTransparency]
                 )
                 .ignoresSafeArea()
