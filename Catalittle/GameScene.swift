@@ -31,7 +31,7 @@ import AppKit
 // MARK: - App Version Constant
 
 struct AppVersion {
-    static let current = "v1.1.1"
+    static let current = "v1.1.2"
 }
 
 // MARK: - Bear / Character Types (Authentic Bearalot Pill Art - Strictly Bounded)
@@ -557,11 +557,16 @@ class GameScene: SKScene {
             updateScoreLabel()
             if score > highScore {
                 highScore = score
-                UserDefaults.standard.set(highScore, forKey: "Catalittle_HighScore")
             }
         }
     }
     private var highScore: Int = UserDefaults.standard.integer(forKey: "Catalittle_HighScore")
+    
+    private func saveHighScoreIfNeeded() {
+        if score >= highScore {
+            UserDefaults.standard.set(highScore, forKey: "Catalittle_HighScore")
+        }
+    }
     
     private var level: Int = 1 {
         didSet { updateLevelLabel() }
@@ -572,7 +577,6 @@ class GameScene: SKScene {
     // MARK: - Electric Laser Danger Line (Full-Width, Instant Kill)
     private var laserGlowNode = SKShapeNode()
     private var laserCoreNode = SKShapeNode()
-    private var lastLaserJitterTime: TimeInterval = 0
     
     // MARK: - Pre-Warmed Texture & Particle Caches
     private static var cachedBearTextures: [BearType: SKTexture] = [:]
@@ -964,23 +968,8 @@ class GameScene: SKScene {
     // MARK: - Electric Laser Danger Line (Full-Width, Instant Kill)
     
     private func setupElectricLaserLine() {
-        laserGlowNode.strokeColor = SKColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 1.0)
-        laserGlowNode.lineWidth = 10.0
-        laserGlowNode.glowWidth = 10.0
-        laserGlowNode.zPosition = 60
-        addChild(laserGlowNode)
-        
-        laserCoreNode.strokeColor = SKColor.white
-        laserCoreNode.lineWidth = 4.5
-        laserCoreNode.zPosition = 61
-        addChild(laserCoreNode)
-        
-        updateElectricLaserPath(jitter: false)
-    }
-    
-    private func updateElectricLaserPath(jitter: Bool) {
         let path = CGMutablePath()
-        let segments = 26
+        let segments = 32
         let startX: CGFloat = -40.0
         let totalW = size.width + 80.0
         let segW = totalW / CGFloat(segments)
@@ -988,14 +977,29 @@ class GameScene: SKScene {
         
         for i in 1...segments {
             let x = startX + CGFloat(i) * segW
-            let amp: CGFloat = (i % 2 == 0) ? 6.5 : -6.5
-            let jitterDelta = jitter ? CGFloat.random(in: -3.0...3.0) : 0.0
-            let y = dangerLineY + amp + jitterDelta
+            let amp: CGFloat = (i % 2 == 0) ? 5.0 : -5.0
+            let y = dangerLineY + amp
             path.addLine(to: CGPoint(x: x, y: y))
         }
         
         laserGlowNode.path = path
+        laserGlowNode.strokeColor = SKColor(red: 0.0, green: 0.95, blue: 1.0, alpha: 0.85)
+        laserGlowNode.lineWidth = 6.0
+        laserGlowNode.glowWidth = 2.0
+        laserGlowNode.zPosition = 60
+        addChild(laserGlowNode)
+        
         laserCoreNode.path = path
+        laserCoreNode.strokeColor = SKColor.white
+        laserCoreNode.lineWidth = 3.0
+        laserCoreNode.zPosition = 61
+        addChild(laserCoreNode)
+        
+        let shimmer = SKAction.sequence([
+            SKAction.fadeAlpha(to: 0.65, duration: 0.08),
+            SKAction.fadeAlpha(to: 1.0, duration: 0.08)
+        ])
+        laserGlowNode.run(SKAction.repeatForever(shimmer))
     }
     
     // MARK: - Game Lifecycle & Start
@@ -1048,12 +1052,19 @@ class GameScene: SKScene {
     
     // MARK: - Smooth Continuous Rise & Pre-Buffered Deep Spawning (Zero Drop/Twitch)
     
+    private var accumulatedScoreY: CGFloat = 0
+    
     private func applyRiseOffset(_ dy: CGFloat, isManualDrag: Bool = false) {
         guard gameState == .playing, dy > 0 else { return }
         gameLayer.position.y += dy
         
         if isManualDrag {
-            score += Int(dy * 0.5)
+            accumulatedScoreY += dy
+            if accumulatedScoreY >= 10.0 {
+                let addPoints = Int(accumulatedScoreY * 0.5)
+                accumulatedScoreY = 0
+                score += addPoints
+            }
         }
         
         let rowStep = blockSize.height + 2.0
@@ -1453,13 +1464,7 @@ class GameScene: SKScene {
             applyRiseOffset(autoRise, isManualDrag: false)
         }
         
-        // 3. Animate Crackling Laser Danger Line
-        if currentTime - lastLaserJitterTime > 0.06 {
-            lastLaserJitterTime = currentTime
-            updateElectricLaserPath(jitter: true)
-        }
-        
-        // 4. Clear State Expiration -> Pop particles & smooth downward fall!
+        // 3. Clear State Expiration -> Pop particles & smooth downward fall!
         if isClearing && CACurrentMediaTime() >= clearStateEndTime {
             finalizeClearingBlocks()
         }
@@ -1673,6 +1678,7 @@ class GameScene: SKScene {
     private func pauseGame() {
         guard gameState == .playing else { return }
         gameState = .paused
+        saveHighScoreIfNeeded()
         SoundManager.shared.pauseBackgroundMusic()
         FastHaptics.shared.trigger(.medium)
         
@@ -1757,6 +1763,7 @@ class GameScene: SKScene {
     private func triggerGameOver() {
         guard gameState == .playing else { return }
         gameState = .gameOver
+        saveHighScoreIfNeeded()
         selectedBlock = nil
         FastHaptics.shared.trigger(.error)
         SoundManager.shared.playError()
