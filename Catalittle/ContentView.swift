@@ -109,9 +109,6 @@ struct CustomSpriteView: UIViewRepresentable {
         skView.ignoresSiblingOrder = true
         skView.shouldCullNonVisibleNodes = true
         skView.preferredFramesPerSecond = 120
-        if #available(iOS 15.0, *) {
-            skView.preferredFrameRateRange = CAFrameRateRange(minimum: 80, maximum: 120, preferred: 120)
-        }
         skView.allowsTransparency = true
         skView.presentScene(scene)
         return skView
