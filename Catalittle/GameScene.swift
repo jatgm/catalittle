@@ -31,7 +31,7 @@ import AppKit
 // MARK: - App Version Constant
 
 struct AppVersion {
-    static let current = "v1.1.3"
+    static let current = "v1.1.4"
 }
 
 // MARK: - Bear / Character Types (Authentic Bearalot Pill Art - Strictly Bounded)
@@ -560,7 +560,11 @@ class GameScene: SKScene {
             }
         }
     }
-    private var highScore: Int = UserDefaults.standard.integer(forKey: "Catalittle_HighScore")
+    private var highScore: Int = UserDefaults.standard.integer(forKey: "Catalittle_HighScore") {
+        didSet {
+            updateHighScoreLabel()
+        }
+    }
     
     private func saveHighScoreIfNeeded() {
         if score >= highScore {
@@ -586,8 +590,10 @@ class GameScene: SKScene {
     // MARK: - UI Nodes & FPS Tracking
     private var hudNode = SKNode()
     private var scoreLabel = SKLabelNode()
+    private var highScoreLabel = SKLabelNode()
     private var levelLabel = SKLabelNode()
     private var levelProgressBar = SKShapeNode()
+    private var barBg = SKShapeNode()
     private var gameOverOverlay = SKNode()
     private var pauseOverlay = SKNode()
     private var versionLabel = SKLabelNode()
@@ -637,9 +643,9 @@ class GameScene: SKScene {
     // MARK: - Geometry Setup
     
     private func setupPlayableArea() {
-        let safeTop = max(safeAreaTopInset, 60.0)
-        topHUD_Y = size.height - safeTop - 45.0
-        dangerLineY = topHUD_Y - 65.0
+        let safeTop = max(safeAreaTopInset, 54.0)
+        topHUD_Y = size.height - safeTop - 16.0
+        dangerLineY = topHUD_Y - 60.0
         
         floorY = 88.0
         
@@ -857,63 +863,75 @@ class GameScene: SKScene {
         hudNode.zPosition = 120
         addChild(hudNode)
         
-        let hudY = topHUD_Y
+        let row1_Y = topHUD_Y
+        let row2_Y = topHUD_Y - 26.0
         
+        // Row 1: Level Badge (Left)
         levelLabel.horizontalAlignmentMode = .left
-        levelLabel.position = CGPoint(x: playableRect.minX + 2, y: hudY)
+        levelLabel.position = CGPoint(x: playableRect.minX + 2, y: row1_Y)
         hudNode.addChild(levelLabel)
         updateLevelLabel()
         
-        scoreLabel.horizontalAlignmentMode = .left
-        scoreLabel.position = CGPoint(x: playableRect.minX + 2, y: hudY - 30)
-        hudNode.addChild(scoreLabel)
-        updateScoreLabel()
+        // Row 1: Level Progress Bar
+        let barX = playableRect.minX + 70.0
+        let barY = row1_Y + 1.0
+        let barW: CGFloat = 80.0
+        let barH: CGFloat = 20.0
         
-        let barX = playableRect.minX + 104.0
-        let barY = hudY - 16.0
-        let barW: CGFloat = 98.0
-        let barH: CGFloat = 28.0
-        
-        let barBg = SKShapeNode(rect: CGRect(x: barX, y: barY, width: barW, height: barH), cornerRadius: 7)
+        barBg = SKShapeNode(rect: CGRect(x: barX, y: barY, width: barW, height: barH), cornerRadius: 6)
         barBg.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.9)
         barBg.strokeColor = SKColor.white
-        barBg.lineWidth = 3.0
+        barBg.lineWidth = 2.5
         hudNode.addChild(barBg)
         
-        levelProgressBar = SKShapeNode(rect: CGRect(x: barX + 2, y: barY + 2, width: 0, height: barH - 4), cornerRadius: 5)
+        levelProgressBar = SKShapeNode(rect: CGRect(x: barX + 2, y: barY + 2, width: 0, height: barH - 4), cornerRadius: 4)
         levelProgressBar.fillColor = SKColor(red: 1.0, green: 0.78, blue: 0.05, alpha: 1.0)
         levelProgressBar.strokeColor = .clear
         hudNode.addChild(levelProgressBar)
         
+        // Row 1: Item Slots
         let slot1X = barX + barW + 8.0
-        let slot1 = SKShapeNode(rect: CGRect(x: slot1X, y: barY, width: 38, height: barH), cornerRadius: 7)
+        let slot1 = SKShapeNode(rect: CGRect(x: slot1X, y: barY, width: 26, height: barH), cornerRadius: 5)
         slot1.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.6)
         slot1.strokeColor = SKColor.white
-        slot1.lineWidth = 3.0
+        slot1.lineWidth = 2.5
         hudNode.addChild(slot1)
         
-        let slot2 = SKShapeNode(rect: CGRect(x: slot1X + 44.0, y: barY, width: 38, height: barH), cornerRadius: 7)
+        let slot2 = SKShapeNode(rect: CGRect(x: slot1X + 32.0, y: barY, width: 26, height: barH), cornerRadius: 5)
         slot2.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.6)
         slot2.strokeColor = SKColor.white
-        slot2.lineWidth = 3.0
+        slot2.lineWidth = 2.5
         hudNode.addChild(slot2)
         
-        let pauseBtn = SKShapeNode(circleOfRadius: 16)
+        // Row 1: Pause Button (Far Right)
+        let pauseBtn = SKShapeNode(circleOfRadius: 14)
         pauseBtn.name = "pause_button"
-        pauseBtn.position = CGPoint(x: playableRect.maxX - 16, y: barY + barH / 2)
+        pauseBtn.position = CGPoint(x: playableRect.maxX - 14, y: barY + barH / 2)
         pauseBtn.fillColor = SKColor(red: 0.35, green: 0.60, blue: 0.90, alpha: 0.9)
         pauseBtn.strokeColor = SKColor.white
-        pauseBtn.lineWidth = 3.0
+        pauseBtn.lineWidth = 2.5
         hudNode.addChild(pauseBtn)
         
         let pauseIcon = SKLabelNode(fontNamed: "AvenirNext-Heavy")
         pauseIcon.name = "pause_button"
         pauseIcon.text = "❚❚"
-        pauseIcon.fontSize = 12
+        pauseIcon.fontSize = 11
         pauseIcon.fontColor = SKColor.white
         pauseIcon.verticalAlignmentMode = .center
-        pauseIcon.position = CGPoint(x: playableRect.maxX - 16, y: barY + barH / 2)
+        pauseIcon.position = CGPoint(x: playableRect.maxX - 14, y: barY + barH / 2)
         hudNode.addChild(pauseIcon)
+        
+        // Row 2: Current Score (Left)
+        scoreLabel.horizontalAlignmentMode = .left
+        scoreLabel.position = CGPoint(x: playableRect.minX + 2, y: row2_Y)
+        hudNode.addChild(scoreLabel)
+        updateScoreLabel()
+        
+        // Row 2: High Score (Right)
+        highScoreLabel.horizontalAlignmentMode = .right
+        highScoreLabel.position = CGPoint(x: playableRect.maxX - 2, y: row2_Y)
+        hudNode.addChild(highScoreLabel)
+        updateHighScoreLabel()
     }
     
     private func setupVersionWatermark() {
@@ -935,12 +953,17 @@ class GameScene: SKScene {
     
     private func updateLevelLabel() {
         let text = String(format: "Lv %02d", level)
-        levelLabel.attributedText = makeOutlinedBubbleString(text: text, fontSize: 26, fillColor: .white, strokeColor: SKColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0))
+        levelLabel.attributedText = makeOutlinedBubbleString(text: text, fontSize: 22, fillColor: SKColor(red: 1.0, green: 0.92, blue: 0.35, alpha: 1.0), strokeColor: SKColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0))
     }
     
     private func updateScoreLabel() {
         let text = String(format: "%07d", score)
-        scoreLabel.attributedText = makeOutlinedBubbleString(text: text, fontSize: 26, fillColor: .white, strokeColor: SKColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0))
+        scoreLabel.attributedText = makeOutlinedBubbleString(text: text, fontSize: 22, fillColor: .white, strokeColor: SKColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0))
+    }
+    
+    private func updateHighScoreLabel() {
+        let text = String(format: "BEST: %07d", highScore)
+        highScoreLabel.attributedText = makeOutlinedBubbleString(text: text, fontSize: 18, fillColor: SKColor(red: 1.0, green: 0.85, blue: 0.20, alpha: 1.0), strokeColor: SKColor(red: 0.08, green: 0.12, blue: 0.28, alpha: 1.0))
     }
     
     private func makeOutlinedBubbleString(text: String, fontSize: CGFloat, fillColor: SKColor, strokeColor: SKColor) -> NSAttributedString {
@@ -1421,14 +1444,14 @@ class GameScene: SKScene {
     }
     
     private func updateLevelProgressBar() {
-        let barX = playableRect.minX + 104.0 + 2.0
-        let barY = topHUD_Y - 16.0 + 2.0
-        let barMaxW: CGFloat = 98.0 - 4.0
-        let barH: CGFloat = 28.0 - 4.0
+        let barX = playableRect.minX + 70.0 + 2.0
+        let barY = topHUD_Y + 1.0 + 2.0
+        let barMaxW: CGFloat = 80.0 - 4.0
+        let barH: CGFloat = 20.0 - 4.0
         let currentW = barMaxW * min(1.0, levelProgress)
         
         let path = CGMutablePath()
-        path.addRoundedRect(in: CGRect(x: barX, y: barY, width: currentW, height: barH), cornerWidth: 4, cornerHeight: 4)
+        path.addRoundedRect(in: CGRect(x: barX, y: barY, width: currentW, height: barH), cornerWidth: 3, cornerHeight: 3)
         levelProgressBar.path = path
     }
     
