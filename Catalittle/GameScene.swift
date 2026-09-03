@@ -31,7 +31,7 @@ import AppKit
 // MARK: - App Version Constant
 
 struct AppVersion {
-    static let current = "v1.1.2"
+    static let current = "v1.1.3"
 }
 
 // MARK: - Bear / Character Types (Authentic Bearalot Pill Art - Strictly Bounded)
@@ -527,7 +527,7 @@ class GameScene: SKScene {
     // MARK: - Layers & Scrolling
     private var gameLayer = SKNode()
     private var nextSpawnThreshold: CGFloat = 0
-    private var baseRiseSpeed: Double = 4.5
+    private var baseRiseSpeed: Double = 11.0
     private var lastUpdateTime: TimeInterval = 0
     
     // MARK: - Panoramic Horizontal X-Axis Scrolling Background
@@ -548,7 +548,7 @@ class GameScene: SKScene {
     private var selectedBlock: BearBlockNode? = nil
     private var clearingBlocks = Set<BearBlockNode>()
     private var clearStateEndTime: TimeInterval = 0
-    private let clearDuration: TimeInterval = 1.75
+    private let clearDuration: TimeInterval = 0.75
     
     // MARK: - Game State & Persistent High Score
     private var gameState: GameState = .ready
