@@ -1,0 +1,29 @@
+# Xcode
+## User settings
+xcuserdata/
+
+## Compatibility with Xcode 8 and earlier
+*.xcscmblueprint
+*.xccheckout
+
+## Build generated
+build/
+DerivedData/
+*.moved-aside
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+## Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+## Code Injection
+iOSInjectionProject/
+
+# macOS
+.DS_Store
+*.swp
+*~

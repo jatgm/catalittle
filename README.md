@@ -1,45 +1,76 @@
-# Bearalot (Bear Links) 🐻🎮
+# Catalittle 🐱✨
 
-A complete, faithful Swift and SpriteKit clone of the classic puzzle game **Bearalot** (also known as *Bear Links* by Mooff Games). Built for iOS, iPadOS, and macOS using **SwiftUI** and **SpriteKit**.
+A fast-paced link-matching puzzle game built from the ground up for iOS, iPadOS, and macOS using **Swift**, **SwiftUI**, and **SpriteKit**.
+
+Inspired by classic *Lianliankan / Shisen-Sho / Onet* connect-link puzzle games (such as *Bearalot* / *Bear Links*), **Catalittle** features a continuous rising floor, high-stakes laser ceiling, combo clear states, and cascading gravity chain reactions.
 
 ---
 
 ## 🕹️ Gameplay & Mechanics
 
-1. **Two-Block Link Matching (Lianliankan / Onet Pathfinding):**
-   - Tap a block to select it.
-   - Tap another matching character block.
+1. **Two-Block Link Matching (Onet / Lianliankan Pathfinding):**
+   - Tap a character block to select it.
+   - Tap an identical matching character block.
    - Connects if an orthogonal path with **at most 2 corners (3 line segments)** is open through empty space or along the board's perimeter.
-   - Draws a glowing white link line between the matching pair!
+   - Draws a glowing link line directly connecting the matching pair.
 
-2. **The "Clear State" & Chain Combo Multipliers (2x, 3x...):**
-   - Matched pairs transform into **glowing cream-yellow capsules with a golden border**.
-   - During the ~1.75s Clear State, blocks **remain solid platforms** to keep pieces above suspended in the air.
-   - **Passable Paths:** New link paths can route directly through clearing blocks!
-   - Linking another pair before the timer ends increases the **Combo Multiplier** (`2x`, `3x`, `4x`...) and refreshes the timer.
-   - When the timer ends, clearing blocks pop into colorful particles and pieces above fall naturally under gravity.
+2. **The "Clear State" & Chain Combo Multipliers (2x, 3x, 4x...):**
+   - Matched pairs transform into solid glowing capsules with golden borders.
+   - While clearing, blocks remain physical platforms so higher blocks stay suspended.
+   - **Passable Channels:** New link paths can route directly through clearing blocks!
+   - Linking another pair before the timer expires increments the **Combo Multiplier** (`2x`, `3x`, `4x`...) and extends the clear window.
+   - When the timer ends, clearing blocks pop into colorful particle bursts and pieces above drop under gravity.
 
-3. **Push-Up / Swipe Spawning:**
-   - Rows automatically push up from the bottom bush floor on a timer.
-   - Swipe **UP** anywhere on screen to manually force a new row to push up (+25 bonus score).
+3. **Post-Fall Cascade Chain Reactions:**
+   - Falling blocks that land directly onto matching neighbors automatically trigger a cascade match, continuing your combo streak!
 
-4. **Danger Ceiling & Game Over:**
-   - Animated wavy water line at the top.
-   - 2.5-second grace period when blocks touch the danger ceiling before Game Over.
+4. **Continuous Rising Floor & Manual Drag:**
+   - Rows continuously crawl upward from the bottom grass floor.
+   - Drag up anywhere on screen to manually accelerate the board for bonus score.
 
-5. **Authentic Custom Vector Characters:**
-   - 🌸 Pink Bear (with round ears & 'Y' snout)
-   - 🌿 Green Lass (with lashes & hair parting)
-   - 🍊 Orange Joy (with wide open laughing mouth)
-   - 🍑 Cyan & Peach Man (with round bulbous nose)
-   - 🧔 Red Mustache (with black handlebar mustache)
-   - 🐸 Lime Frog (with wide-set dot eyes)
-   - ⭐ Yellow Star/Cat (with anime sparkle eyes)
+5. **Danger Ceiling & Electric Laser:**
+   - A crackling electric laser guards the danger line at the top.
+   - Touching the laser triggers game over!
+
+6. **Procedural Vector Characters:**
+   - All character art is rendered procedurally via `CoreGraphics` / `CGContext` vector paths (zero external bitmap art assets).
+
+---
+
+## ⚡ Performance & Features
+
+- **120 FPS ProMotion Support:** Unlocked high-refresh rendering on ProMotion iPhones and iPads.
+- **Persistent High Scores:** Stored safely via `UserDefaults`, persisting across sessions and version updates.
+- **Interactive Pause & Auto-Pause:** Automatically pauses the game when minimized or backgrounded.
+- **Haptics:** Pre-warmed tactile feedback for selections, links, cascades, and level-ups.
 
 ---
 
 ## 🚀 Getting Started
 
-1. Open `Catalittle.xcodeproj` in Xcode.
+1. Open `Catalittle.xcodeproj` in Xcode 16+.
 2. Select your device or simulator (iOS Simulator, iPhone, iPad, or Mac).
 3. Press **Cmd + R** to Build & Run.
+
+---
+
+## 🎵 Audio Credits & Licensing
+
+- **Background Music:**
+  - *"Cipher"* by Kevin MacLeod ([incompetech.com](https://incompetech.com))
+  - Licensed under **Creative Commons: By Attribution 4.0 International License**  
+    [http://creativecommons.org/licenses/by/4.0/](http://creativecommons.org/licenses/by/4.0/)
+- **Sound Effects:**
+  - Procedurally synthesized Glockenspiel / Bell chimes, pops, and resonance via Apple `AVFoundation`.
+
+---
+
+## ⚖️ Legal & Non-Affiliation Disclaimer
+
+*Catalittle* is an independent, original software implementation developed for educational and entertainment purposes. It is **not** affiliated with, sponsored by, or endorsed by Mooff Games or the creators of *Bearalot* / *Bear Links*. All registered trademarks and copyrights belong to their respective owners.
+
+---
+
+## 📄 License
+
+Distributed under the **MIT License**. See [`LICENSE`](LICENSE) for details.
